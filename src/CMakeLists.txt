@@ -1,0 +1,6 @@
+cmake_minimum_required(VERSION 2.8)
+project(test)
+find_package(OpenCV REQUIRED)
+add_executable(test capture.cpp)
+#add_executable(test capture.c)
+target_link_libraries(test ${OpenCV_LIBS})
