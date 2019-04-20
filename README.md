@@ -76,6 +76,25 @@ void savejpg(void)
 ```
 gcc capture.c -o capture -ljpeg
 ```
+编译生成可执行文件即可测试：
+```
+$ ./capture -d /dev/video0 -w 1920 -m
+fmt.type:               1
+pix.pixelformat:        YUYV
+pix.width:              1920
+pix.height:             1080
+pix.field:              1
+time 10ms
+time 5ms
+time 5ms
+time 4ms
+time 5ms
+time 5ms
+time 5ms
+time 4ms
+time 5ms
+time 5ms
+```
 
 ## 使用opencv进行转换和存储
 opencv实现了空间转换和存图的接口，通过调用以下`savejpg`可存储jpg图片。
@@ -108,8 +127,50 @@ add_executable(test capture.cpp)
 #add_executable(test capture.c)
 target_link_libraries(test ${OpenCV_LIBS})
 ```
-运行`cmake .`生成包括了opencv链接的makefile，再通过`make`编译，生成可执行文件即可测试。
-测试命令如下：
+运行`cmake .`生成包括了opencv链接的makefile:
 ```
-./test -d /dev/video0 -w 1920 -m
+$ cmake .
+-- The C compiler identification is GNU 6.3.0
+-- The CXX compiler identification is GNU 6.3.0
+-- Check for working C compiler: /usr/bin/cc
+-- Check for working C compiler: /usr/bin/cc -- works
+-- Detecting C compiler ABI info
+-- Detecting C compiler ABI info - done
+-- Detecting C compile features
+-- Detecting C compile features - done
+-- Check for working CXX compiler: /usr/bin/c++
+-- Check for working CXX compiler: /usr/bin/c++ -- works
+-- Detecting CXX compiler ABI info
+-- Detecting CXX compiler ABI info - done
+-- Detecting CXX compile features
+-- Detecting CXX compile features - done
+-- Found OpenCV: /usr/local (found version "3.4.0")
+-- Configuring done
+-- Generating done
+-- Build files have been written to: /home/pi/work/test_camera/src
+```
+再通过`make`编译，生成可执行文件即可测试:
+```
+$ make
+Scanning dependencies of target testcamera
+[ 50%] Building CXX object CMakeFiles/testcamera.dir/capture.cpp.o
+[100%] Linking CXX executable testcamera
+[100%] Built target testcamera
+$ ./testcamera -d /dev/video0 -w 1920 -m
+fmt.type:               1
+pix.pixelformat:        YUYV
+pix.width:              1920
+pix.height:             1080
+pix.field:              1
+time 10ms
+time 5ms
+time 5ms
+time 4ms
+time 5ms
+time 5ms
+time 5ms
+time 5ms
+time 5ms
+time 4ms
+save a_123 use time 35ms
 ```
