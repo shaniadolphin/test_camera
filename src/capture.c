@@ -128,7 +128,10 @@ void savejpg(void)
 {
 	unsigned char* rgb = yuyv2rgb(test_buf, width, height);
 	FILE* out = fopen("result.jpg", "w");
+	int tim1 = getCurTime();
 	jpeg(out, rgb, width, height, 100);
+	int tim2= getCurTime();
+	printf("save use time %ums\n", tim2 - tim1);
 	fclose(out);
 	free(rgb);
 }
