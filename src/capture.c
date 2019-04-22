@@ -33,6 +33,7 @@ struct buffer {
 };
  
 static char * dev_name = NULL;
+static char * jpg_name = NULL;
 static io_method io = IO_METHOD_MMAP;
 static int fd = -1;
 struct buffer * buffers = NULL;
@@ -127,7 +128,8 @@ unsigned char* yuyv2rgb(unsigned char* yuyv, unsigned int iwidth, unsigned int i
 void savejpg(void)
 {
 	unsigned char* rgb = yuyv2rgb(test_buf, width, height);
-	FILE* out = fopen("result.jpg", "w");
+	//FILE* out = fopen("result.jpg", "w");jpg_name
+	FILE* out = fopen(jpg_name, "w");
 	int tim1 = getCurTime();
 	jpeg(out, rgb, width, height, 100);
 	int tim2= getCurTime();
@@ -558,12 +560,13 @@ static void usage(FILE * fp, int argc, char ** argv) {
  
 int main(int argc, char ** argv) {
 	dev_name = "/dev/video0";
+	jpg_name = "result.jpg";
  
 	for (;;) {
 		int index;
 		int c;
 
-		c = getopt (argc, argv, "d:w:hmru");
+		c = getopt (argc, argv, "d:w:i:hmru");
 		if (-1 == c)
 			break;
  
@@ -589,6 +592,10 @@ int main(int argc, char ** argv) {
  
 		case 'u':
 			io = IO_METHOD_USERPTR;
+			break;
+			
+		case 'i':
+			jpg_name = optarg;
 			break;
 			
 		case 'w':
