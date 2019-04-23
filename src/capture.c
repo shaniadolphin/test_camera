@@ -603,14 +603,17 @@ int main(int argc, char ** argv) {
 			width = atoi(optarg);
 			if(width == 1920)
 				height = 1080;
-			else if(width == 2592)
-				height = 1944;
+			else if(width >= 2048)//2560x1920 2592
+			{
+				width = 2560;
+				height = 1920;//
+			}
 			else
 			{
-				width == 1280;
+				width = 1280;
 				height = 720;
 			}
-			break;	
+			break;
 		default:
 			usage(stderr, argc, argv);
 			exit(EXIT_FAILURE);

@@ -86,6 +86,9 @@ static int read_frame(void) {
 	unsigned int i;
 	int tim1 = getCurTime();
 	switch (io) {
+	case IO_METHOD_READ:
+		/* Nothing to do. */
+		break;
 	case IO_METHOD_MMAP:
 		CLEAR(buf);
 		buf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
@@ -236,6 +239,9 @@ static void uninit_device(void) {
 	unsigned int i;
  
 	switch (io) {
+	case IO_METHOD_READ:
+		/* Nothing to do. */
+		break;
 	case IO_METHOD_MMAP:
 		for (i = 0; i < n_buffers; ++i)
 			if (-1 == munmap(buffers[i].start, buffers[i].length))
@@ -248,7 +254,7 @@ static void uninit_device(void) {
 	}
 	//free(buffers);
 }
- 
+#if 0
 static void init_read(unsigned int buffer_size) {
 	/*
 	buffers = calloc(1, sizeof(*buffers));
@@ -263,7 +269,7 @@ static void init_read(unsigned int buffer_size) {
 		exit(EXIT_FAILURE);
 	}
 }
- 
+#endif
 static void init_mmap(void) {
 	struct v4l2_requestbuffers req;
 	CLEAR(req);
@@ -364,6 +370,9 @@ static void init_device(void) {
 		exit(EXIT_FAILURE);
 	}
 	switch (io) {
+	case IO_METHOD_READ:
+		/* Nothing to do. */
+		break;
 	case IO_METHOD_MMAP:
 	case IO_METHOD_USERPTR:
 		if (!(cap.capabilities & V4L2_CAP_STREAMING)) {
@@ -423,6 +432,9 @@ static void init_device(void) {
 	if (fmt.fmt.pix.sizeimage < min)
 		fmt.fmt.pix.sizeimage = min;
 	switch (io) {
+	case IO_METHOD_READ:
+		/* Nothing to do. */
+		break;
 	case IO_METHOD_MMAP:
 		init_mmap();
 		break;
@@ -460,20 +472,17 @@ static void open_device(void) {
 
 static void savejpg(void)
 {
-	char files[100];
 	int tm3 = getCurTime();
 	Mat mat_t(height, width, CV_8UC2, (unsigned char*)buffers[0].start);
 	Mat bgrImg_t(height, width, CV_8UC3, covBuf);
 	cvtColor(mat_t, bgrImg_t, CV_YUV2BGR_YUYV);
 	int tm4 = getCurTime();
 	imwrite(save_name, bgrImg_t);
-	sprintf(files, "%s_%d", save_name, 123);
-	printf("save %s use time %ums\r\n", files, tm4-tm3);
+	printf("save jpg use time %ums\r\n", tm4-tm3);
 }
 
 int main(int argc, char* argv[])
 {
-	int ret = -1;
 	int res;
 	dev_name = "/dev/video0";
 	while((res = getopt(argc, argv, "w:i:d:muh")) != -1)
@@ -496,17 +505,20 @@ int main(int argc, char* argv[])
 				width = atoi(optarg);
 				if(width == 1920)
 					height = 1080;
-				else if(width == 2592)
+				else if(width >= 2048)
+				{
+					width = 2592;
 					height = 1944;
+				}
 				else
 				{
-					width == 1280;
+					width = 1280;
 					height = 720;
 				}
 			break;	
 			case 'h':
-			std::cout << "[Usage]: " << argv[0] << " [-h]\n"
-			<< "   [-p proto_file] [-m model_file] [-i image_file]\n";
+				std::cout << "[Usage]: " << argv[0] << " [-h]\n"
+					<< "   [-p proto_file] [-m model_file] [-i image_file]\n";
 			return 0;
 			default:
 			break;
