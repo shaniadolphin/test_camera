@@ -142,7 +142,7 @@ static int read_frame(void) {
 
 static void mainloop(void) {
 	unsigned int count;
-	count = 10;
+	count = 1;
 	while (count-- > 0) {
 		for (;;) {
 			//int tim1 = getCurTime();
