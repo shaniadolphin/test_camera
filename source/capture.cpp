@@ -4,7 +4,7 @@ project(test)
 find_package(OpenCV REQUIRED)
 add_executable(test capture.cpp)
 target_link_libraries(test ${OpenCV_LIBS})
-#./test -d /dev/video2 -w 1920 -m
+#./capture -d /dev/video0 -w 1920
 ***************/
 
 #include <stdio.h>
@@ -25,6 +25,11 @@ target_link_libraries(test ${OpenCV_LIBS})
 #include <linux/videodev2.h>
 #include <iostream>
 
+#include <netinet/in.h>
+#include <sys/socket.h>
+#include <netdb.h>
+#include <arpa/inet.h>
+
 #include <opencv2/dnn.hpp>
 #include <opencv2/imgproc.hpp>
 #include <opencv2/highgui.hpp>
@@ -44,20 +49,24 @@ typedef struct VideoBuffer {
 	unsigned int  length;
 } VideoBuffer;
  
+#define MAXLINE 4096
 
 static io_method io = IO_METHOD_MMAP;
 static int fd = -1;
 static VideoBuffer buffers[BUF_CNT];
-static unsigned int n_buffers = 0;
-static unsigned int width = 1280;
-static unsigned int height = 720;
+static unsigned int n_buffers = 2;
+static unsigned int width = 1920;
+static unsigned int height = 1080;
 
+static unsigned int ipv4port = 12345;
 static unsigned char test_buf[2592*1944*3] = {0};
 static unsigned char covBuf[2592*1944*3];
 FILE *fp;
 const char* dev_name = nullptr;
 std::string save_name = "save.jpg";
- 
+const char* ipv4addr;
+static char* wh;
+
 static void errno_exit(const char * s) {
 	fprintf(stderr, "%s error %d, %s/n", s, errno, strerror(errno));
 	exit(EXIT_FAILURE);
@@ -142,7 +151,7 @@ static int read_frame(void) {
 
 static void mainloop(void) {
 	unsigned int count;
-	count = 1;
+	count = 2;
 	while (count-- > 0) {
 		for (;;) {
 			//int tim1 = getCurTime();
@@ -473,7 +482,7 @@ static void open_device(void) {
 static void savejpg(void)
 {
 	int tm3 = getCurTime();
-	Mat mat_t(height, width, CV_8UC2, (unsigned char*)buffers[0].start);
+	Mat mat_t(height, width, CV_8UC2, (unsigned char*)buffers[1].start);
 	Mat bgrImg_t(height, width, CV_8UC3, covBuf);
 	cvtColor(mat_t, bgrImg_t, CV_YUV2BGR_YUYV);
 	int tm4 = getCurTime();
@@ -481,10 +490,104 @@ static void savejpg(void)
 	printf("save jpg use time %ums\r\n", tm4-tm3);
 }
 
+static long get_file_size(const char *path)
+{
+    long filesize = -1;
+    struct stat statbuff;
+
+    if (stat(path, &statbuff) < 0)
+    {
+        return filesize;
+    }
+    else
+    {
+        filesize = statbuff.st_size;
+    }
+    return filesize;
+}
+
+int socket_client_send_data(char *serverip, int port, char *file)
+{
+    int   i, sockfd, len;
+    char  buffer[MAXLINE];
+    struct sockaddr_in  servaddr;
+    FILE *fq;
+    long file_size;
+
+    printf("###### %s ######, connect server ip = %s, port = %d\r\n", __FUNCTION__, serverip, port);
+    if( (sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0)
+    {
+        printf("create socket error: %s(errno: %d)\n", strerror(errno), errno);
+        return 0;
+    }
+
+    memset(&servaddr, 0, sizeof(servaddr));
+    servaddr.sin_family = AF_INET;
+    servaddr.sin_port = htons(port);
+    if ( inet_pton(AF_INET, serverip, &servaddr.sin_addr) <= 0)
+    {
+        printf("inet_pton error for %s\n", serverip);
+        return 0;
+    }
+
+    if ( connect(sockfd, (struct sockaddr*)&servaddr, sizeof(servaddr)) < 0)
+    {
+        printf("connect error: %s(errno: %d)\n", strerror(errno), errno);
+        return 0;
+    }
+    if ( ( fq = fopen(file, "rb") ) == NULL )
+    {
+        printf("File open err = %s.\n", file);
+        close(sockfd);
+        return 0;
+    }
+    file_size = get_file_size((const char *)file);
+    if (file_size <= 0)
+    {
+        printf("File size error\n");
+        close(sockfd);
+        fclose(fq);
+    }
+
+    bzero(buffer, sizeof(buffer));
+    sprintf(buffer, "%ld", file_size);
+    for (i = 0; i < 16; i++)
+    {
+        if (buffer[i] == 0)
+        {
+            buffer[i] = ' ';
+        }
+    }
+    write(sockfd, buffer, 16);
+
+    while (!feof(fq))
+    {
+        len = fread(buffer, 1, sizeof(buffer), fq);
+        if(len != write(sockfd, buffer, len))
+        {
+            printf("write error.\n");
+            break;
+        }
+    }
+    close(sockfd);
+    fclose(fq);
+    printf("socket_client_send_data end\r\n");
+
+    return 0;
+}
+
 int main(int argc, char* argv[])
 {
 	int res;
 	dev_name = "/dev/video0";
+	ipv4addr = "192.168.199.142";
+	int listenfd;
+
+	
+	if( (listenfd = socket(AF_INET, SOCK_STREAM, 0)) == -1 ){
+		printf("create socket error: %s(errno: %d)\n",strerror(errno),errno);
+		return 0;
+	}
 	while((res = getopt(argc, argv, "w:i:d:muh")) != -1)
 	{
 		switch(res)
@@ -502,20 +605,37 @@ int main(int argc, char* argv[])
 				dev_name = optarg;
 			break;
 			case 'w':
-				width = atoi(optarg);
+				char *tokenPtr;
+				wh = optarg;
+				tokenPtr = strtok(optarg, "*");
+				width = atoi(tokenPtr);
+				//printf("token:%s\n",tokenPtr);
+				tokenPtr = strtok(NULL, "*");
+				//printf("token:%s\n",tokenPtr);
+				height = atoi(tokenPtr);
+				/***
 				if(width == 1920)
 					height = 1080;
-				else if(width >= 2048)
+				else if(width > 1920)
 				{
-					width = 2592;
-					height = 1944;
+					width = 2160; //2160/
+					height = 1440;
 				}
 				else
 				{
 					width = 1280;
 					height = 720;
 				}
-			break;	
+				***/
+			break;
+			case 'p':
+				ipv4port = atoi(optarg);
+				printf("ipv4port:%d\r\n", ipv4port);
+			break;
+			case 'c':
+				ipv4addr = optarg;
+				printf("ipv4addr:%s\r\n", ipv4addr);
+			break;			
 			case 'h':
 				std::cout << "[Usage]: " << argv[0] << " [-h]\n"
 					<< "   [-p proto_file] [-m model_file] [-i image_file]\n";

@@ -29,6 +29,10 @@ target_link_libraries(test ${OpenCV_LIBS})
 #include <opencv2/imgproc.hpp>
 #include <opencv2/highgui.hpp>
 
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <netdb.h> 
+
 using namespace cv;
 using namespace std;
 
@@ -36,6 +40,8 @@ static unsigned int width = 1280;
 static unsigned int height = 720;
 
 const char* dev_name = nullptr;
+const char* ipv4addr = nullptr;
+static unsigned int ipv4port;
 std::string save_name = "save.jpg";
 
 static int getCurTime(){
@@ -49,7 +55,9 @@ int main(int argc, char* argv[])
 	int res;
 	int capnum = 0;
 	dev_name = "/dev/video0";
-	while((res = getopt(argc, argv, "w:i:d:muh")) != -1)
+	ipv4addr = "192.168.199.142";
+	ipv4port = atoi("12345");
+	while((res = getopt(argc, argv, "w:i:d:muhc:p:")) != -1)
 	{
 		switch(res)
 		{
@@ -98,7 +106,15 @@ int main(int argc, char* argv[])
 					width = 1280;
 					height = 720;
 				}
-			break;	
+			break;
+			case 'p':
+				ipv4port = atoi(optarg);
+				printf("ipv4port:%d\r\n", ipv4port);
+			break;
+			case 'c':
+				ipv4addr = optarg;
+				printf("ipv4addr:%s\r\n", ipv4addr);
+			break;
 			case 'h':
 				std::cout << "[Usage]: " << argv[0] << " [-h]\n"
 					<< "   [-p proto_file] [-m model_file] [-i image_file]\n";
@@ -115,10 +131,56 @@ int main(int argc, char* argv[])
 	{  
 		return -1;  
 	}
+	
+	int sockfd, connected;
+	struct sockaddr_in serv_addr;
+	struct hostent *server;
+	connected = 0;
+	sockfd = socket(AF_INET, SOCK_STREAM, 0);
+	if (sockfd < 0)
+		printf("ERROR opening socket");
+	server = gethostbyname(ipv4addr);//这里填IP地址
+	if (server == NULL) 
+	{
+		fprintf(stderr, "ERROR, no such host\n");
+	}
+	else
+	{
+		bzero((char *)&serv_addr, sizeof(serv_addr));
+		serv_addr.sin_family = AF_INET;
+		bcopy((char *)server->h_addr,
+		(char *)&serv_addr.sin_addr.s_addr,
+		server->h_length);
+		serv_addr.sin_port = htons(ipv4port);
+		if(connect(sockfd, (struct sockaddr *) &serv_addr, sizeof(serv_addr)) < 0)
+		{
+			printf("ERROR connecting\n");
+		}
+		else
+		{
+			connected = 1;
+			printf("Connected!!\n");
+		}
+		
+	}
 	Mat frame;
 	int tm3 = getCurTime();
 	cap>>frame;
 	int tm4 = getCurTime();
+	Mat gray;
+	if(connected)
+	{
+		
+		//int bytes = send(sockfd, frame.data, frame.total()*frame.elemSize(), 0);
+		cvtColor(frame, gray, CV_BGR2GRAY);
+		int bytes = send(sockfd, frame.data, frame.total()*frame.elemSize(), 0);
+		
+		//vector<unsigned char> img_encode;
+		//cv::imencode(".jpg", frame, img_encode);
+		printf("send %d\r\n", bytes);
+		
+		//ssize_t recv(int sockfd, void *buff, size_t nbytes, int flags);
+	}
 	imwrite(save_name, frame);
 	printf("save jpg use time %ums\r\n", tm4-tm3);
 	return 0;  
