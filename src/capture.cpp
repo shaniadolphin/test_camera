@@ -502,6 +502,14 @@ int main(int argc, char* argv[])
 				dev_name = optarg;
 			break;
 			case 'w':
+				char *tokenPtr;
+				tokenPtr = strtok(optarg, "*");
+				width = atoi(tokenPtr);
+				printf("width:%s\n",tokenPtr);
+				tokenPtr = strtok(NULL, "*");
+				printf("height:%s\n",tokenPtr);
+				height = atoi(tokenPtr);
+				/***
 				width = atoi(optarg);
 				if(width == 1920)
 					height = 1080;
@@ -515,6 +523,7 @@ int main(int argc, char* argv[])
 					width = 1280;
 					height = 720;
 				}
+				***/
 			break;	
 			case 'h':
 				std::cout << "[Usage]: " << argv[0] << " [-h]\n"
