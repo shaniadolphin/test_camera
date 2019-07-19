@@ -547,6 +547,48 @@ int fisheye_calibrate_process(string src_path)
 	return 0;
 }
 
+void cameraToWorld(InputArray cameraMatrix, InputArray rV, InputArray tV, InputArray imgPoints)
+{
+	
+	Mat invK64, invK;
+	invK64 = cameraMatrix.getMat().inv();
+	invK64.convertTo(invK, CV_32F);
+	Mat r, t, rMat;
+	rV.getMat().convertTo(r, CV_32F);
+	tV.getMat().convertTo(t, CV_32F);
+	Rodrigues(r, rMat);
+	Mat transPlaneToCam = rMat.inv()*t;
+	Mat opoints = imgPoints.getMat();
+	int npoints = opoints.checkVector(2), depth = opoints.depth();
+	//CvMat c_objectPoints = cvMat(opoints);
+	
+	vector<Point3f> wpTemp;
+	//int s2 = (int)imgPoints.size();
+	for (int j = 0; j < npoints; ++j){
+		Mat coords(3, 1, CV_32F);
+		coords.at<float>(0, 0) = 0;//imgPoints[j].x;
+		coords.at<float>(1, 0) = 0;//imgPoints[j].y;
+		coords.at<float>(2, 0) = 1.0f;
+		
+		Mat worldPtCam = invK * coords;
+		Mat worldPtPlane = rMat.inv()*worldPtCam;
+		
+		float scale = transPlaneToCam.at<float>(2) / worldPtPlane.at<float>(2);
+		
+		Mat worldPtPlaneReproject = scale*worldPtPlane - transPlaneToCam;
+		#if 0
+		Point3f pt;
+		pt.x = worldPtPlaneReproject.at<float>(0);
+		pt.y = worldPtPlaneReproject.at<float>(1);
+		pt.z = 0;
+		#endif
+		//wpTemp.push_back(pt);
+		//worldPoints.push_back(pt);
+	}
+	//worldPoints.push_back(wpTemp);
+	
+}
+
 int normal_calibrate_process(string src_path)
 {
 	char mk_out_dir[256];
@@ -699,6 +741,14 @@ int normal_calibrate_process(string src_path)
 	CvMat *pR_matrix = cvCreateMat(3,3,CV_64FC1);
 	CvMat *pnew_vec = cvCreateMat(1,3,CV_64FC1);
 	CvMat *pt_vec = cvCreateMat(1,3,CV_64FC1);
+	#if 1
+	Mat camera_matrix = Mat(3, 3, CV_64FC1, Scalar::all(0));
+	camera_matrix.ptr<double>(0)[0] = intrinsic_matrix(0, 0);
+	camera_matrix.ptr<double>(0)[2] = intrinsic_matrix(0, 2);
+	camera_matrix.ptr<double>(1)[1] = intrinsic_matrix(1, 1);
+	camera_matrix.ptr<double>(1)[2] = intrinsic_matrix(1, 2);
+	camera_matrix.ptr<double>(2)[2] = 1.0f;
+	#endif
 	/************************************************************************
 	保存标定结果
 	*************************************************************************/
@@ -725,6 +775,7 @@ int normal_calibrate_process(string src_path)
 		t_vec[0]=(double)(translation_vectors[i](0));
 		t_vec[1]=(double)(translation_vectors[i](1));
 		t_vec[2]=(double)(translation_vectors[i](2));
+
 
 		cvInitMatHeader(pr_vec, 1, 3, CV_64FC1, r_vec, CV_AUTOSTEP);
 		cvInitMatHeader(pR_matrix, 3, 3, CV_64FC1, R_matrix, CV_AUTOSTEP);
@@ -776,12 +827,17 @@ int normal_calibrate_process(string src_path)
 		hm.push_back(h);
 		cout << "Homography:\n" << h << endl;
 		#endif
-
+		//vector<Point3f> worldPoint(100);
+		Mat worldPoint = Mat(1, tempImagePoint.size(), CV_32FC2);
+		cameraToWorld(intrinsic_matrix, rotation_vec_tmp, translation_vec_tmp, image_points2);
+		
 		cout << "第" << i + 1 << "幅图像的旋转向量：" << endl;
 		cout << "原始:" <<rotation_vec_tmp << endl;
 		cout << "反算:" <<mat_tmp << endl;
 		cout << "第" << i + 1 << "幅图像的平移向量：" << endl;
-		cout << "原始:" << translation_vec_tmp << endl;		
+		cout << "原始:" << translation_vec_tmp << endl;
+		cout << "原始空间点:" << object_Points[i] << endl;
+		cout << "计算空间点:" << worldPoint << endl;		//object_Points[i]
 	}
 	cout << "完成保存" << endl;
 	fout << endl;
