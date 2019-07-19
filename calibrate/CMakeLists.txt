@@ -1,0 +1,8 @@
+cmake_minimum_required(VERSION 3.9)
+set(CMAKE_CXX_STANDARD 11)
+add_definitions(-g -o2)
+project(calibrate)
+find_package(OpenCV REQUIRED)
+add_executable(calibrate calibrate_fisheye.cpp)
+target_link_libraries(calibrate ${OpenCV_LIBS})
+target_link_libraries(calibrate -lpthread -lm -lstdc++)
