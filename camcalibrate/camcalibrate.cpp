@@ -547,9 +547,8 @@ int fisheye_calibrate_process(string src_path)
 	return 0;
 }
 
-void cameraToWorld(InputArray cameraMatrix, InputArray rV, InputArray tV, InputArray imgPoints)
+void cameraToWorld(InputArray cameraMatrix, InputArray rV, InputArray tV, vector<Point2f> imgPoints, vector<Point3f> &worldPoints)
 {
-	
 	Mat invK64, invK;
 	invK64 = cameraMatrix.getMat().inv();
 	invK64.convertTo(invK, CV_32F);
@@ -557,36 +556,46 @@ void cameraToWorld(InputArray cameraMatrix, InputArray rV, InputArray tV, InputA
 	rV.getMat().convertTo(r, CV_32F);
 	tV.getMat().convertTo(t, CV_32F);
 	Rodrigues(r, rMat);
-	Mat transPlaneToCam = rMat.inv()*t;
-	Mat opoints = imgPoints.getMat();
-	int npoints = opoints.checkVector(2), depth = opoints.depth();
+
+	//计算 invR * T
+	Mat invR = rMat.inv();
+	//cout << "invR\n" << invR << endl;
+
+	Mat transPlaneToCam;
+	transPlaneToCam = invR * t.t();
+	//cout << "transPlaneToCam\n" << transPlaneToCam << endl;
+	//Mat opoints = imgPoints.getMat();
+	//int npoints = opoints.checkVector(2);
+	//int depth = opoints.depth();
 	//CvMat c_objectPoints = cvMat(opoints);
-	
-	vector<Point3f> wpTemp;
-	//int s2 = (int)imgPoints.size();
+
+	int npoints = (int)imgPoints.size();
+	//cout << "npoints\n" << npoints << endl;
 	for (int j = 0; j < npoints; ++j){
 		Mat coords(3, 1, CV_32F);
-		coords.at<float>(0, 0) = 0;//imgPoints[j].x;
-		coords.at<float>(1, 0) = 0;//imgPoints[j].y;
-		coords.at<float>(2, 0) = 1.0f;
-		
-		Mat worldPtCam = invK * coords;
-		Mat worldPtPlane = rMat.inv()*worldPtCam;
-		
-		float scale = transPlaneToCam.at<float>(2) / worldPtPlane.at<float>(2);
-		
-		Mat worldPtPlaneReproject = scale*worldPtPlane - transPlaneToCam;
-		#if 0
 		Point3f pt;
+		coords.at<float>(0, 0) = imgPoints[j].x;
+		coords.at<float>(1, 0) = imgPoints[j].y;
+		coords.at<float>(2, 0) = 1.0f;
+		//[x,y,z] = invK * [u,v,1]
+		Mat worldPtCam = invK * coords;
+		//[x,y,1] * invR
+		Mat worldPtPlane = invR * worldPtCam;
+		//zc 
+		float scale = transPlaneToCam.at<float>(2) / worldPtPlane.at<float>(2);
+		//cout << "scale\n" << scale << endl;
+		Mat scale_worldPtPlane(3, 1, CV_32F);
+		//scale_worldPtPlane.at<float>(0, 0) = worldPtPlane.at<float>(0, 0) * scale;
+		//zc * [x,y,1] * invR
+		scale_worldPtPlane = scale * worldPtPlane;
+		//[X,Y,Z]=zc*[x,y,1]*invR - invR*T
+		Mat worldPtPlaneReproject = scale_worldPtPlane - transPlaneToCam;
 		pt.x = worldPtPlaneReproject.at<float>(0);
 		pt.y = worldPtPlaneReproject.at<float>(1);
-		pt.z = 0;
-		#endif
-		//wpTemp.push_back(pt);
-		//worldPoints.push_back(pt);
+		//pt.z = worldPtPlaneReproject.at<float>(2);
+		pt.z = 1.0f;
+		worldPoints.push_back(pt);
 	}
-	//worldPoints.push_back(wpTemp);
-	
 }
 
 int normal_calibrate_process(string src_path)
@@ -813,8 +822,9 @@ int normal_calibrate_process(string src_path)
 		}
 		
 		//translation_vectors[i](0) = 0;
-		translation_vectors[i](1) = 0;
-		projectPoints(tempPointSet, mat_tmp, translation_vectors[i], intrinsic_matrix, distortion_coeffs, image_points2);
+		//translation_vectors[i](1) = 0;
+		cv::Mat distortion_coeffs1 = cv::Mat(1, 5, CV_32FC1, cv::Scalar::all(0)); /* 摄像机的5个畸变系数：k1,k2,p1,p2,k3 */
+		projectPoints(tempPointSet, mat_tmp, translation_vectors[i], intrinsic_matrix, distortion_coeffs1, image_points2);
 		Mat image2_points2Mat = Mat(1, image_points2.size(), CV_32FC2);
 		for (size_t i = 0; i != tempImagePoint.size(); i++)
 		{
@@ -827,17 +837,17 @@ int normal_calibrate_process(string src_path)
 		hm.push_back(h);
 		cout << "Homography:\n" << h << endl;
 		#endif
-		//vector<Point3f> worldPoint(100);
-		Mat worldPoint = Mat(1, tempImagePoint.size(), CV_32FC2);
-		cameraToWorld(intrinsic_matrix, rotation_vec_tmp, translation_vec_tmp, image_points2);
+		vector<Point3f> worldPoint;
+		//Mat worldPoint = Mat(1, tempImagePoint.size(), CV_32FC2);
+		cameraToWorld(intrinsic_matrix, mat_tmp, translation_vec_tmp, image_points2, worldPoint);
 		
 		cout << "第" << i + 1 << "幅图像的旋转向量：" << endl;
 		cout << "原始:" <<rotation_vec_tmp << endl;
 		cout << "反算:" <<mat_tmp << endl;
 		cout << "第" << i + 1 << "幅图像的平移向量：" << endl;
 		cout << "原始:" << translation_vec_tmp << endl;
-		cout << "原始空间点:" << object_Points[i] << endl;
-		cout << "计算空间点:" << worldPoint << endl;		//object_Points[i]
+		cout << "原始空间点:\n" << image_points2 << endl;
+		cout << "计算空间点:\n" << worldPoint << endl;		//object_Points[i]
 	}
 	cout << "完成保存" << endl;
 	fout << endl;
