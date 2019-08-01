@@ -3,10 +3,11 @@ project(GetWorldPosition)
 set(CMAKE_CXX_STANDARD 11)
 add_definitions(-g -o2)
 find_package(OpenCV REQUIRED)
-include_directories(./ ../pnpSolver)#添加多目录的路径
+include_directories(./ ../PNPSolver)#添加多目录的路径
 
 # Add block directories
-set(PNPSOLVER ${CMAKE_SOURCE_DIR}/../pnpSolver)
+set(PNPSOLVER ${CMAKE_SOURCE_DIR}/../PNPSolver)
+message("'PNPSOLVER'=${PNPSOLVER}")
 if( IS_DIRECTORY ${PNPSOLVER} )
     # 第二个cassdk.out参数用于指定外部文件夹在输出文件夹中的位置
     add_subdirectory( ${PNPSOLVER} pnpSolver.out)
