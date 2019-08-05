@@ -123,6 +123,150 @@ Vec3f rotationMatrixToEulerAngles(Mat &R, int flag)
 	return Vec3f(x, y, z);
 }
 
+void myDistortPoints(InputArray undistorted, OutputArray distorted, InputArray K, InputArray D)
+{
+	cout << undistorted.size() << undistorted.type() <<endl;
+	double alpha = 0;
+	size_t n = undistorted.total();
+	cv::Vec2d f, c;
+	if (K.depth() == CV_32F)
+	{
+		Matx33f camMat = K.getMat();
+		f = Vec2f(camMat(0, 0), camMat(1, 1));
+		c = Vec2f(camMat(0, 2), camMat(1, 2));
+	}
+	else
+	{
+		Matx33d camMat = K.getMat();
+		f = Vec2d(camMat(0, 0), camMat(1, 1));
+		c = Vec2d(camMat(0 ,2), camMat(1, 2));
+	}
+	cout << f << c <<endl;
+	distorted.create(undistorted.size(), undistorted.type());
+	Vec4d k = D.depth() == CV_32F ? (Vec4d)*D.getMat().ptr<Vec4f>(): *D.getMat().ptr<Vec4d>();
+
+	const Vec2f* Xf = undistorted.getMat().ptr<Vec2f>();
+	const Vec2d* Xd = undistorted.getMat().ptr<Vec2d>();
+	Vec2f *xpf = distorted.getMat().ptr<Vec2f>();
+	Vec2d *xpd = distorted.getMat().ptr<Vec2d>();
+
+	for(size_t i = 0; i < n; ++i)
+	{
+		Vec2d x = undistorted.depth() == CV_32F ? (Vec2d)Xf[i] : Xd[i];
+		//cout << "\nx = "<< x << endl;
+		Vec2d newx = ((x[0]-c[0])/f[0], (x[1]-c[1])/f[1]);
+		newx[0]=(x[0]-c[0])/f[0];
+		newx[1]=(x[1]-c[1])/f[1];
+		double r2 = newx.dot(newx);
+		//double r2 = x.dot(x);
+		double r = std::sqrt(r2);
+		//cout << "newx = "<< newx << endl;
+		// Angle of the incoming ray:
+		double theta = atan(r);
+
+		double theta2 = theta*theta, theta3 = theta2*theta, theta4 = theta2*theta2, theta5 = theta4*theta,
+				theta6 = theta3*theta3, theta7 = theta6*theta, theta8 = theta4*theta4, theta9 = theta8*theta;
+
+		double theta_d = theta + k[0]*theta3 + k[1]*theta5 + k[2]*theta7 + k[3]*theta9;
+		
+		double inv_r = r > 1e-8 ? 1.0/r : 1; //  =1/r
+		double cdist = r > 1e-8 ? theta_d * inv_r : 1; // = theta_d/r
+		//cout << "cdist = "<< cdist << endl;
+		Vec2d xd1 = newx * cdist;		// = x * theta_d/r
+		Vec2d xd3(xd1[0] + alpha*xd1[1], xd1[1]);
+		Vec2d final_point(xd1[0] * f[0] + c[0], xd1[1] * f[1] + c[1]);
+
+		if (undistorted.depth() == CV_32F)
+			xpf[i] = final_point;
+		else
+			xpd[i] = final_point;
+		//cout << "xd1 = "<< xd1 << endl;
+		//cout << "final_point = "<< final_point << endl;
+	}
+}
+
+void opencvUndistortPoints(InputArray distorted, OutputArray undistorted, InputArray K, InputArray D)
+{
+    undistorted.create(distorted.size(), distorted.type());
+	
+    cv::Vec2d f, c;
+    if (K.depth() == CV_32F)
+    {
+        Matx33f camMat = K.getMat();
+        f = Vec2f(camMat(0, 0), camMat(1, 1));
+        c = Vec2f(camMat(0, 2), camMat(1, 2));
+    }
+    else
+    {
+        Matx33d camMat = K.getMat();
+        f = Vec2d(camMat(0, 0), camMat(1, 1));
+        c = Vec2d(camMat(0, 2), camMat(1, 2));
+    }
+
+    Vec4d k = D.depth() == CV_32F ? (Vec4d)*D.getMat().ptr<Vec4f>(): *D.getMat().ptr<Vec4d>();
+
+    cv::Matx33d RR = cv::Matx33d::eye();
+	cv::Matx33d PP;
+    K.getMat().colRange(0, 3).convertTo(PP, CV_64F);
+	RR = PP * RR;
+    // start undistorting
+    const cv::Vec2f* srcf = distorted.getMat().ptr<cv::Vec2f>();
+    const cv::Vec2d* srcd = distorted.getMat().ptr<cv::Vec2d>();
+    cv::Vec2f* dstf = undistorted.getMat().ptr<cv::Vec2f>();
+    cv::Vec2d* dstd = undistorted.getMat().ptr<cv::Vec2d>();
+	
+    size_t n = distorted.total();
+    int sdepth = distorted.depth();
+
+    for(size_t i = 0; i < n; i++ )
+    {
+        Vec2d pi = sdepth == CV_32F ? (Vec2d)srcf[i] : srcd[i];  // image point
+        Vec2d pw((pi[0] - c[0])/f[0], (pi[1] - c[1])/f[1]);      // world point
+		//cout << "distorted = "<< pi << endl;
+
+        double scale = 1.0;
+
+        double theta_d = sqrt(pw[0]*pw[0] + pw[1]*pw[1]);
+
+        // the current camera model is only valid up to 180 FOV
+        // for larger FOV the loop below does not converge
+        // clip values so we still get plausible results for super fisheye images > 180 grad
+        theta_d = min(max(-CV_PI/2., theta_d), CV_PI/2.);
+
+        if (theta_d > 1e-8)
+        {
+            // compensate distortion iteratively
+            double theta = theta_d;
+
+            const double EPS = 1e-8; // or std::numeric_limits<double>::epsilon();
+            for (int j = 0; j < 10; j++)
+            {
+                double theta2 = theta*theta, theta4 = theta2*theta2, theta6 = theta4*theta2, theta8 = theta6*theta2;
+                double k0_theta2 = k[0] * theta2, k1_theta4 = k[1] * theta4, k2_theta6 = k[2] * theta6, k3_theta8 = k[3] * theta8;
+                /* new_theta = theta - theta_fix, theta_fix = f0(theta) / f0'(theta) */
+                double theta_fix = (theta * (1 + k0_theta2 + k1_theta4 + k2_theta6 + k3_theta8) - theta_d) /
+                                   (1 + 3*k0_theta2 + 5*k1_theta4 + 7*k2_theta6 + 9*k3_theta8);
+                theta = theta - theta_fix;
+                if (fabs(theta_fix) < EPS)
+                    break;
+            }
+
+            scale = std::tan(theta) / theta_d;
+        }
+
+        Vec2d pu = pw * scale; //undistorted point
+
+        // reproject
+        Vec3d pr = RR * Vec3d(pu[0], pu[1], 1.0); // rotated point optionally multiplied by new camera matrix
+        Vec2d fi(pr[0]/pr[2], pr[1]/pr[2]);       // final
+
+        if( sdepth == CV_32F )
+            dstf[i] = fi;
+        else
+            dstd[i] = fi;
+    }
+}
+
 Vec2f myUndistortPoints(InputArray K, InputArray D, InputArray R, InputArray P, double x_, double y_)
 {
 	//从内参矩阵K中取出归一化焦距fx,fy; cx,cy
@@ -306,6 +450,7 @@ int fisheye_calibrate_process(string src_path)
 			count = count + corners.size();
 			successImageNum = successImageNum + 1;
 			corners_Seq.push_back(corners);
+			filenames.push_back(imageFileName);
 		}
 		image_Seq.push_back(image);
 	}
@@ -365,7 +510,7 @@ int fisheye_calibrate_process(string src_path)
 	//Mat newcameramtx = Mat::eye(3, 3, CV_32F);
 	cv::Matx33d newcameramtx;
 	Mat newcame;
-	double balance = 0.5;
+	double balance = 0;
 	int flags = 0;
 	double total_err = 0.0;                   /* 所有图像的平均误差的总和 */
 	double err = 0.0;                        /* 每幅图像的平均误差 */
@@ -376,9 +521,7 @@ int fisheye_calibrate_process(string src_path)
 	flags |= cv::fisheye::CALIB_FIX_SKEW;
 	fisheye::calibrate(object_Points, corners_Seq, image_size, intrinsic_matrix, distortion_coeffs, rotation_vectors, translation_vectors, flags, cv::TermCriteria(3, 20, 1e-6));
 	//fisheye::estimateNewCameraMatrixForUndistortRectify(intrinsic_matrix, distortion_coeffs,image_size,transformation, newcameramtx,balance,image_size,0);
-	//fisheye::initUndistortRectifyMap(intrinsic_matrix, distortion_coeffs, transformation, newcameramtx, image_size, CV_32FC1, mapx, mapy);
-	estimateNewCameraMatrix(intrinsic_matrix, distortion_coeffs, image_size,
-		Matx33d::eye(), newcameramtx, balance, image_size, 0);
+	estimateNewCameraMatrix(intrinsic_matrix, distortion_coeffs, image_size, Matx33d::eye(), newcameramtx, balance, image_size, 0);
 	cout << "\n newcameramtx:\n";
 	cout << newcameramtx << endl;
 	#if 0
@@ -393,11 +536,10 @@ int fisheye_calibrate_process(string src_path)
 	newcameramtx(0, 0) = intrinsic_matrix(0, 0)/(1 + balance);
 	newcameramtx(1, 1) = intrinsic_matrix(1, 1)/(1 + balance);
 	#endif
-	fisheye::initUndistortRectifyMap(intrinsic_matrix, distortion_coeffs, Matx33d::eye(), newcameramtx, image_size,
-		CV_32FC1, mapx, mapy);
+	fisheye::initUndistortRectifyMap(intrinsic_matrix, distortion_coeffs, Matx33d::eye(), newcameramtx, image_size, CV_32FC1, mapx, mapy);
 	cout << "开始评价标定结果………………" << endl;
 	cout << "每幅图像的定标误差：" << endl;
-	for (unsigned int i = 0; i<image_Seq.size(); i++)
+	for (unsigned int i = 0; i<filenames.size(); i++)
 	{
 		vector<Point3f> tempPointSet = object_Points[i];
 		/*通过得到的摄像机内外参数，对空间的三维点进行重新投影计算，得到新的投影点*/
@@ -417,7 +559,33 @@ int fisheye_calibrate_process(string src_path)
 
 		err = norm(image_points2Mat, tempImagePointMat, NORM_L2);
 		total_err += err /= point_counts[i];
-		cout << "第" << i + 1 << "幅图像的平均误差：" << err << "像素" << endl;
+		cout << "图" << filenames[i] << "的平均误差：" << err << "像素" << endl;
+
+#if 1
+		string imageSaveName;
+		std::stringstream StrStm;
+		StrStm << src_path;
+		StrStm << sub_path;
+		StrStm << i;
+		StrStm >> imageSaveName;
+		imageSaveName += "_c.jpg";
+		vector<Point2f> distort;
+		vector<Point2f> undistort;
+		cv::Mat t = imread(filenames[i]);
+		opencvUndistortPoints(tempImagePoint, undistort, intrinsic_matrix, distortion_coeffs);
+		myDistortPoints(undistort, distort, intrinsic_matrix, distortion_coeffs);
+		//cout << "corners" << corners << endl;
+		//cout << "undistort" << undistort << endl;
+		//cout << "imageSaveName:" << imageSaveName << endl;
+		for(int j= 0; j< undistort.size(); j++)
+		{
+			circle(t, tempImagePoint[j], 5, cv::Scalar(0, 100, 0), 2, 8, 0);
+			circle(t, distort[j], 10, cv::Scalar(0, 0, 100), 2, 8, 0);
+			circle(t, undistort[j], 20, cv::Scalar(0, 0, 255), 2, 8, 0);
+		}
+		//cout << "distort" << newdistort << endl;
+		imwrite(imageSaveName, t);
+#endif		
 	}
 	cout << "总体平均误差：" << total_err / image_count << "像素" << endl;
 
@@ -510,7 +678,8 @@ int fisheye_calibrate_process(string src_path)
 
 	//cout << "角点数量：" << endl;
 	//cout << corners_Seq[image_count].size() << endl;
-	for (unsigned int i = 0; i < image_Seq.size(); i++)
+	//for (unsigned int i = 0; i < image_Seq.size(); i++)
+	for (unsigned int i = 0; i < filenames.size(); i++)
 	//for (string imageFileName : file_vec)
 	{
 		//cout << "将图片 " << imageFileName << " 进行反畸变..." << endl;
@@ -530,11 +699,44 @@ int fisheye_calibrate_process(string src_path)
 		StrStm << image_count;
 		StrStm >> imageSaveName;
 		imageSaveName += "_d.jpg";
+		//cout << filenames[i] << '\n' << imageSaveName << '\n' << endl;
+#if 0
+		Mat imageGray;
+		vector<Point2f> distort;
+		vector<Point2f> undistort;
+		cvtColor(t, imageGray, CV_RGB2GRAY);
+		bool patternfound = findChessboardCorners(imageGray, board_size, corners, CALIB_CB_ADAPTIVE_THRESH + CALIB_CB_NORMALIZE_IMAGE + CALIB_CB_FAST_CHECK);
+		if (!patternfound)
+		{
+			cout << "找不到角点" << endl;
+			continue;
+		}
+		else
+		{
+			cornerSubPix(imageGray, corners, Size(5, 5), Size(-1, -1), TermCriteria(CV_TERMCRIT_EPS + CV_TERMCRIT_ITER, 30, 0.1));
+			myDistortPoints(corners, distort, intrinsic_matrix, distortion_coeffs);
+			opencvUndistortPoints(distort,undistort,intrinsic_matrix,distortion_coeffs);
+			cout << "corners" << corners << endl;
+			cout << "undistort" << undistort << endl;
+			vector<Point2i> newdistort;
+			///Mat newdistort = Mat(distort).astype(int);
+			Mat(distort).convertTo(newdistort, CV_32FC1); 
+			//circle(t, newdistort, 10, Scalar(0, 0, 255), 2, 8, 0);
+			//circle(t, cv::Point(200, 200), 5, cv::Scalar(0, 0, 255),-1);
+			for(i = 0;i< newdistort.size();i++)
+			{
+				circle(t, corners[i], 5, cv::Scalar(0, 100, 0), 2, 8, 0);
+				circle(t, newdistort[i], 5, cv::Scalar(0, 0, 100), 2, 8, 0);
+				circle(t, undistort[i], 20, cv::Scalar(100, 0, 0), 2, 8, 0);
+			}
+			//cout << "distort" << newdistort << endl;
+		}
+		
+#endif
 		imwrite(imageSaveName, t);
-
 		++image_count;
 	}
-
+	
 	#if 0
 	{
 		double temp[128];
@@ -543,7 +745,7 @@ int fisheye_calibrate_process(string src_path)
 	#endif
 
 	cout << "保存结束" << endl;
-
+	exit(1);
 	return 0;
 }
 
