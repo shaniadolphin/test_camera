@@ -1,10 +1,37 @@
 /****************
-cmake_minimum_required(VERSION 2.8)
-project(test)
+# cmake needs this line
+cmake_minimum_required(VERSION 3.1)
+
+# Enable C++11
+set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD_REQUIRED TRUE)
+
+# Define project name
+project(capture)
+
+# Find OpenCV, you may need to set OpenCV_DIR variable
+# to the absolute path to the directory containing OpenCVConfig.cmake file
+# via the command line or GUI
+#set(OpenCV_DIR "/mnt/h/proj/opencv/opencv-4.1.0/release")
 find_package(OpenCV REQUIRED)
-add_executable(test capture.cpp)
-target_link_libraries(test ${OpenCV_LIBS})
-#./capture -d /dev/video0 -w 1920
+
+# If the package has been found, several variables will
+# be set, you can find the full list with descriptions
+# in the OpenCVConfig.cmake file.
+# Print some message showing some of them
+#message(STATUS "OpenCV library status:")
+message(STATUS "    config: ${OpenCV_DIR}")
+message(STATUS "    version: ${OpenCV_VERSION}")
+message(STATUS "    libraries: ${OpenCV_LIBS}")
+message(STATUS "    include path: ${OpenCV_INCLUDE_DIRS}")
+
+# Declare the executable target built from your sources
+add_executable(capture capture.cpp)
+
+# Link your application with OpenCV libraries
+target_link_libraries(capture ${OpenCV_LIBS})
+target_link_libraries(capture -lpthread -lm -lstdc++)
+#./capture -d /dev/video0 -i 2.jpg -w 1920*1440 -t 1
 ***************/
 
 #include <stdio.h>
@@ -30,14 +57,14 @@ target_link_libraries(test ${OpenCV_LIBS})
 #include <netdb.h>
 #include <arpa/inet.h>
 
-#include <opencv2/dnn.hpp>
+#include "opencv2/core.hpp"
 #include <opencv2/imgproc.hpp>
 #include <opencv2/highgui.hpp>
 
 using namespace cv;
 using namespace std;
 
-#define  BUF_CNT   2
+#define  BUF_CNT   5
 #define CLEAR(x) memset (&(x), 0, sizeof (x))
 
 typedef enum {
@@ -60,7 +87,7 @@ static unsigned int width = 1920;
 static unsigned int height = 1080;
 
 static unsigned int ipv4port = 12345;
-static unsigned char test_buf[2592*1944*3] = {0};
+static unsigned char test_buf[2592*1944*2] = {0};
 static unsigned char covBuf[2592*1944*3];
 FILE *fp;
 const char* dev_name = nullptr;
@@ -131,16 +158,17 @@ const cv::Mat & cameraMatrix, const cv::Mat & distortionCoeff)
 
 static void savejpg(void)
 {
-	//int tm3 = getCurTime();
-	Mat mat_t(height, width, CV_8UC2, (unsigned char*)buffers[0].start);
+	int tm3 = getCurTime();
+	//Mat mat_t(height, width, CV_8UC2, (unsigned char*)buffers[0].start);
+	Mat mat_t(height, width, CV_8UC2, test_buf);
 	Mat bgrImg_t(height, width, CV_8UC3, covBuf);
 	cvtColor(mat_t, bgrImg_t, CV_YUV2BGR_YUYV);
-	//int tm4 = getCurTime();
-	if(n_pics == 1)
+	int tm4 = getCurTime();
+	if(n_pics <= 1)
 		imwrite(file_name, bgrImg_t);
 	else
 		imwrite(save_name, bgrImg_t);
-	//printf("save jpg use time %ums\r\n", tm4-tm3);
+	printf("save file using time: %ums\r\n", tm4-tm3);
 }
 
 static int xioctl(int fd, int request, void * arg) {
@@ -179,7 +207,7 @@ static int read_frame(void) {
 			}
 		}
 		assert(buf.index < n_buffers);
-		#if 0
+		#if 1
 		process_image(buffers[buf.index].start, buf.length);
 		#endif
 		if (-1 == xioctl(fd, VIDIOC_QBUF, &buf))
@@ -205,7 +233,7 @@ static int read_frame(void) {
 					&& buf.length == buffers[i].length)
 				break;
 		assert(i < n_buffers);
-		#if 0
+		#if 1
 		process_image((void *) buf.m.userptr, buf.length);
 		#endif
 		if (-1 == xioctl(fd, VIDIOC_QBUF, &buf))
@@ -222,9 +250,11 @@ static void mainloop(void) {
 	#if 1
 	unsigned int count;
 	char str[50];
-	//count = 1;n_pics
-	count = n_pics;
-	while (count-- > 0) {
+	if(n_pics <= 1)
+		count = 5;
+	else
+		count = n_pics;
+	while (count-- > 0){
 		for (;;) {
 			//int tim1 = getCurTime();
 			fd_set fds;
@@ -250,14 +280,23 @@ static void mainloop(void) {
 				//int tim2= getCurTime();
 				//printf("time %ums\n", tim2 - tim1);
 				gettimeofday(&tv, NULL);    //该函数在sys/time.h头文件中
-				printf("%d-%d:start\n", (int)(tv.tv_sec)%100,(int)(tv.tv_usec)/1000);
-				sprintf(str,"%d_%s",count, file_name);
-				save_name = str;
-				gettimeofday(&tv, NULL);    //该函数在sys/time.h头文件中
-				printf("%d-%d:%s\n", (int)(tv.tv_sec)%100,(int)(tv.tv_usec)/1000, save_name);
-				savejpg();
-				gettimeofday(&tv, NULL);    //该函数在sys/time.h头文件中
-				printf("%d-%d:done\n", (int)(tv.tv_sec)%100,(int)(tv.tv_usec)/1000);
+
+				if(n_pics <= 1)
+				{
+					if(count == 1)
+						savejpg();
+				}
+				else
+				{
+					printf("%dmin-%dms:start\n", (int)(tv.tv_sec)%100,(int)(tv.tv_usec)/1000);
+					sprintf(str,"%d_%s",count, file_name);
+					save_name = str;
+					gettimeofday(&tv, NULL);    //该函数在sys/time.h头文件中
+					printf("%dmin-%dms:%s\n", (int)(tv.tv_sec)%100,(int)(tv.tv_usec)/1000, save_name);
+					savejpg();
+					gettimeofday(&tv, NULL);    //该函数在sys/time.h头文件中
+					printf("%dmin-%dms:done\n", (int)(tv.tv_sec)%100,(int)(tv.tv_usec)/1000);					
+				}
 				break;
 			}/* EAGAIN - continue select loop. */
 		}
@@ -393,7 +432,7 @@ static void init_read(unsigned int buffer_size) {
 static void init_mmap(void) {
 	struct v4l2_requestbuffers req;
 	CLEAR(req);
-	#if 0
+	#if 1
 	req.count = 4;
 	#else
 	req.count = 2;	
