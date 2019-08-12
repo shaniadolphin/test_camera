@@ -171,6 +171,118 @@ Vec2f myUndistortPoints(InputArray K, InputArray D, InputArray R, InputArray P, 
 	return Vec2f(dst_x, dst_y);
 }
 
+Point2f xyz2uv(Point3f worldPoint,float intrinsic[3][3],float translation[1][3],float rotation[3][3])  
+{  
+	//    [fx s x0]                         [Xc]        [Xw]        [u]   1     [Xc]  
+	//K = |0 fy y0|       TEMP = [R T]      |Yc| = TEMP*|Yw|        | | = —*K *|Yc|  
+	//    [ 0 0 1 ]                         [Zc]        |Zw|        [v]   Zc    [Zc]  
+	//                                                  [1 ]  
+	Point3f c;  
+	c.x = rotation[0][0]*worldPoint.x + rotation[0][1]*worldPoint.y + rotation[0][2]*worldPoint.z + translation[0][0]*1;  
+	c.y = rotation[1][0]*worldPoint.x + rotation[1][1]*worldPoint.y + rotation[1][2]*worldPoint.z + translation[0][1]*1;  
+	c.z = rotation[2][0]*worldPoint.x + rotation[2][1]*worldPoint.y + rotation[2][2]*worldPoint.z + translation[0][2]*1;  
+
+	Point2f uv;  
+	uv.x = (intrinsic[0][0]*c.x + intrinsic[0][1]*c.y + intrinsic[0][2]*c.z)/c.z;  
+	uv.y = (intrinsic[1][0]*c.x + intrinsic[1][1]*c.y + intrinsic[1][2]*c.z)/c.z;  
+
+	return uv;  
+} 
+
+Point3f uv2xyz(Point2f uvLeft,Point2f uvRight)  
+{  
+	//  [u1]      |X|                     [u2]      |X|  
+	//Z*|v1| = Ml*|Y|                   Z*|v2| = Mr*|Y|  
+	//  [ 1]      |Z|                     [ 1]      |Z|  
+	//            |1|                               |1|  
+	Mat mLeftRotation = Mat(3,3,CV_32F,leftRotation);  
+	Mat mLeftTranslation = Mat(3,1,CV_32F,leftTranslation);  
+	Mat mLeftRT = Mat(3,4,CV_32F);//左相机M矩阵  
+	hconcat(mLeftRotation,mLeftTranslation,mLeftRT);  
+	Mat mLeftIntrinsic = Mat(3,3,CV_32F,leftIntrinsic);  
+	Mat mLeftM = mLeftIntrinsic * mLeftRT;  
+	//cout<<"左相机M矩阵 = "<<endl<<mLeftM<<endl;  
+
+	Mat mRightRotation = Mat(3,3,CV_32F,rightRotation);  
+	Mat mRightTranslation = Mat(3,1,CV_32F,rightTranslation);  
+	Mat mRightRT = Mat(3,4,CV_32F);//右相机M矩阵  
+	hconcat(mRightRotation,mRightTranslation,mRightRT);  
+	Mat mRightIntrinsic = Mat(3,3,CV_32F,rightIntrinsic);  
+	Mat mRightM = mRightIntrinsic * mRightRT;  
+	//cout<<"右相机M矩阵 = "<<endl<<mRightM<<endl;  
+
+	//最小二乘法A矩阵  
+	Mat A = Mat(4,3,CV_32F);  
+	A.at<float>(0,0) = uvLeft.x * mLeftM.at<float>(2,0) - mLeftM.at<float>(0,0);  
+	A.at<float>(0,1) = uvLeft.x * mLeftM.at<float>(2,1) - mLeftM.at<float>(0,1);  
+	A.at<float>(0,2) = uvLeft.x * mLeftM.at<float>(2,2) - mLeftM.at<float>(0,2);  
+
+	A.at<float>(1,0) = uvLeft.y * mLeftM.at<float>(2,0) - mLeftM.at<float>(1,0);  
+	A.at<float>(1,1) = uvLeft.y * mLeftM.at<float>(2,1) - mLeftM.at<float>(1,1);  
+	A.at<float>(1,2) = uvLeft.y * mLeftM.at<float>(2,2) - mLeftM.at<float>(1,2);  
+
+
+	//最小二乘法B矩阵  
+	Mat B = Mat(4,1,CV_32F);  
+	B.at<float>(0,0) = mLeftM.at<float>(0,3) - uvLeft.x * mLeftM.at<float>(2,3);  
+	B.at<float>(1,0) = mLeftM.at<float>(1,3) - uvLeft.y * mLeftM.at<float>(2,3);  
+	B.at<float>(2,0) = mRightM.at<float>(0,3) - uvRight.x * mRightM.at<float>(2,3);  
+	B.at<float>(3,0) = mRightM.at<float>(1,3) - uvRight.y * mRightM.at<float>(2,3);  
+
+	Mat XYZ = Mat(3,1,CV_32F);  
+	//采用SVD最小二乘法求解XYZ  
+	solve(A,B,XYZ,DECOMP_SVD);  
+
+	//cout<<"空间坐标为 = "<<endl<<XYZ<<endl;  
+
+	//世界坐标系中坐标  
+	Point3f world;  
+	world.x = XYZ.at<float>(0,0);  
+	world.y = XYZ.at<float>(1,0);  
+	world.z = XYZ.at<float>(2,0);  
+
+	return world;  
+} 
+
+void fromCamToWorld(Mat cameraMatrix, vector<Mat> rV, vector<Mat> tV, vector<vector<Point2f>> imgPoints, vector<vector<Point3f>> &worldPoints)  
+{  
+	int s = (int)rV.size();  
+	Mat invK64, invK;  
+	invK64 = cameraMatrix.inv();  
+	invK64.convertTo(invK, CV_32F);  
+
+	for (int i = 0; i < s; ++i)  
+	{  
+		Mat r, t, rMat;  
+		rV[i].convertTo(r, CV_32F);  
+		tV[i].convertTo(t, CV_32F);  
+
+		Rodrigues(r, rMat);  
+		Mat transPlaneToCam = rMat.inv()*t;  
+
+		vector<Point3f> wpTemp;  
+		int s2 = (int)imgPoints[i].size();  
+		for (int j = 0; j < s2; ++j){  
+			Mat coords(3, 1, CV_32F);  
+			coords.at<float>(0, 0) = imgPoints[i][j].x;  
+			coords.at<float>(1, 0) = imgPoints[i][j].y;  
+			coords.at<float>(2, 0) = 1.0f;  
+
+			Mat worldPtCam = invK*coords;  
+			Mat worldPtPlane = rMat.inv()*worldPtCam;  
+
+			float scale = transPlaneToCam.at<float>(2) / worldPtPlane.at<float>(2);  
+			Mat worldPtPlaneReproject = scale*worldPtPlane - transPlaneToCam;  
+
+			Point3f pt;  
+			pt.x = worldPtPlaneReproject.at<float>(0);  
+			pt.y = worldPtPlaneReproject.at<float>(1);  
+			pt.z = 0;  
+			wpTemp.push_back(pt);  
+		}  
+		worldPoints.push_back(wpTemp);  
+	}  
+}
 int main()
 {
 #ifdef calibration

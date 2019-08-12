@@ -29,4 +29,4 @@ add_executable(calibrate camcalibrate.cpp)
 
 # Link your application with OpenCV libraries
 target_link_libraries(calibrate ${OpenCV_LIBS})
-target_link_libraries(calibrate -lpthread -lm -lstdc++)
+target_link_libraries(calibrate -lpthread -lm -ltbb -lstdc++)

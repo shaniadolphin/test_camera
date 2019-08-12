@@ -21,13 +21,10 @@ g++ -g -Wall -Wl,-rpath=./lib -I/usr/include/ -L./lib   -c -o calibrate_fisheye.
 #include <stdio.h>
 #include <fstream>
 #include <cmath>
-
+#include <tbb/tbb.h>
 #include "opencv2/core.hpp"
-#include <opencv2/core/utility.hpp>
 #include "opencv2/imgproc.hpp"
 #include "opencv2/calib3d.hpp"
-#include "opencv2/imgcodecs.hpp"
-#include "opencv2/videoio.hpp"
 #include "opencv2/highgui.hpp"
 
 //#include "nvram/libnvram.h"
@@ -55,7 +52,7 @@ void getFiles(string src_path)
 }
 
 // Calculates rotation matrix given euler angles.
-Mat eulerAnglesToRotationMatrix(Vec3f &theta)
+inline Mat eulerAnglesToRotationMatrix(Vec3f &theta)
 {
 	// Calculate rotation about x axis
 	Mat R_x = (Mat_<double>(3,3) <<
@@ -92,7 +89,7 @@ bool isRotationMatrix(Mat &R)
 // Calculates rotation matrix to euler angles
 // The result is the same as MATLAB except the order
 // of the euler angles ( x and z are swapped ).
-Vec3f rotationMatrixToEulerAngles(Mat &R, int flag)
+inline Vec3f rotationMatrixToEulerAngles(Mat &R, int flag)
 {
 	//assert(isRotationMatrix(R));
 	float sy = sqrt(R.at<double>(0,0) * R.at<double>(0,0) +  R.at<double>(1,0) * R.at<double>(1,0) );
@@ -128,7 +125,7 @@ Vec3f rotationMatrixToEulerAngles(Mat &R, int flag)
 
 void myDistortPoints(InputArray undistorted, OutputArray distorted, InputArray K, InputArray D)
 {
-	cout << undistorted.size() << undistorted.type() <<endl;
+	//cout << undistorted.size() << undistorted.type() <<endl;
 	double alpha = 0;
 	size_t n = undistorted.total();
 	cv::Vec2d f, c;
@@ -144,7 +141,7 @@ void myDistortPoints(InputArray undistorted, OutputArray distorted, InputArray K
 		f = Vec2d(camMat(0, 0), camMat(1, 1));
 		c = Vec2d(camMat(0 ,2), camMat(1, 2));
 	}
-	cout << f << c <<endl;
+	//cout << f << c <<endl;
 	distorted.create(undistorted.size(), undistorted.type());
 	Vec4d k = D.depth() == CV_32F ? (Vec4d)*D.getMat().ptr<Vec4f>(): *D.getMat().ptr<Vec4d>();
 
@@ -401,357 +398,6 @@ void estimateNewCameraMatrix(InputArray K, InputArray D, const Size &image_size,
 				0,        0,       1)).convertTo(P, P.empty() ? K.type() : P.type());
 }
 
-int fisheye_calibrate_process(string src_path)
-{
-	char mk_out_dir[256];
-
-	cout << __FUNCTION__ << " : "<< src_path << endl;
-
-	sprintf(mk_out_dir, "mkdir -p %s%s", src_path.c_str(), sub_path.c_str());
-	system(mk_out_dir);
-
-	ofstream fout(src_path+sub_path+"calibrate_result.txt");  /**    保存定标结果的文件     **/
-	getFiles(src_path);							//遍历文件夹下的所有.jpg文件
-	/************************************************************************
-	读取每一幅图像，从中提取出角点，然后对角点进行亚像素精确化
-	*************************************************************************/
-	cout << "开始提取角点………………" << endl;
-	int image_count = 0;                    /****    图像数量     ****/
-	Size board_size = Size(11,8);            /****    定标板上每行、列的角点数       ****/
-	vector<Point2f> corners;                  /****    缓存每幅图像上检测到的角点       ****/
-	vector<vector<Point2f>>  corners_Seq;    /****  保存检测到的所有角点       ****/
-	vector<Mat>  image_Seq;
-	int successImageNum = 0;                /****   成功提取角点的棋盘图数量    ****/
-	vector<string> filenames;
-	int count = 0;
-
-	//for (int i = 0; i != image_count; i++)
-	for (string imageFileName : file_vec)
-	{
-		cout << "从图片 " << imageFileName << "中查找角点..." << endl;
-		std::stringstream StrStm;
-		//StrStm << image_count;
-		//StrStm >> imageFileName;
-		//imageFileName += ".jpg";
-		cv::Mat image = imread(imageFileName);
-		/* 提取角点 */
-		Mat imageGray;
-		cvtColor(image, imageGray, CV_RGB2GRAY);
-		bool patternfound = findChessboardCorners(image, board_size, corners, CALIB_CB_ADAPTIVE_THRESH + CALIB_CB_NORMALIZE_IMAGE + CALIB_CB_FAST_CHECK);
-		if (!patternfound)
-		{
-			cout << "找不到角点," << imageFileName << "不正确！" << endl;
-			//exit(1);
-			continue;
-		}
-		else
-		{
-			++image_count;
-			/* 亚像素精确化 */
-			cornerSubPix(imageGray, corners, Size(5, 5), Size(-1, -1), TermCriteria(CV_TERMCRIT_EPS + CV_TERMCRIT_ITER, 30, 0.1));
-			cout << "从图片 " << imageFileName << "中找到角点：" << corners.size() << endl;
-			count = count + corners.size();
-			successImageNum = successImageNum + 1;
-			corners_Seq.push_back(corners);
-			filenames.push_back(imageFileName);
-		}
-		image_Seq.push_back(image);
-	}
-	if(image_count > 3)
-	{
-		cout << "角点提取完成！\n";
-	}
-	else
-	{
-		cout << "图片不够！\n";
-		exit(1);
-	}
-	/************************************************************************
-	摄像机标定
-	*************************************************************************/
-	cout << "开始标定………………" << endl;
-	Size square_size = Size(30, 30);
-	vector<vector<Point3f>>  object_Points;        /****  保存定标板上角点的三维坐标   ****/
-
-	Mat image_points = Mat(1, count, CV_32FC2, Scalar::all(0));  /*****   保存提取的所有角点   *****/
-	vector<int>  point_counts;
-	/* 初始化定标板上角点的三维坐标 */
-	for (int t = 0; t<successImageNum; t++)
-	{
-		vector<Point3f> tempPointSet;
-		for (int j = 0; j<board_size.height; j++)
-		{
-			for (int i = 0; i<board_size.width; i++)
-			{
-				/* 假设定标板放在世界坐标系中z=0的平面上 */
-				Point3f tempPoint;
-				//tempPoint.x = i*square_size.width;
-				//tempPoint.y = j*square_size.height;
-				tempPoint.x = i*square_size.height;
-				tempPoint.y = j*square_size.width;
-				tempPoint.z = 0;
-				tempPointSet.push_back(tempPoint);
-			}
-		}
-		object_Points.push_back(tempPointSet);
-	}
-	for (int i = 0; i< successImageNum; i++)
-	{
-		point_counts.push_back(board_size.width*board_size.height);
-	}
-	/* 开始标定 */
-	Size image_size = image_Seq[0].size();
-	cv::Matx33d intrinsic_matrix;    /*****    摄像机内参数矩阵    ****/
-	cv::Vec4d distortion_coeffs;     /*****    摄像机的4个畸变系数：k1,k2,k3,k4****/
-	std::vector<cv::Vec3d> rotation_vectors;                           /* 每幅图像的旋转向量 */
-	std::vector<cv::Vec3d> translation_vectors;                        /* 每幅图像的平移向量 */
-	cout << "标定完成！\n";
-	cout << "生成MAP数据！\n";
-	Mat mapx = Mat(image_size, CV_32FC1);
-	Mat mapy = Mat(image_size, CV_32FC1);
-	Mat transformation = Mat::eye(3, 3, CV_32F);
-	//Mat newcameramtx = Mat::eye(3, 3, CV_32F);
-	cv::Matx33d newcameramtx;
-	Mat newcame;
-	double balance = 0;
-	int flags = 0;
-	double total_err = 0.0;                   /* 所有图像的平均误差的总和 */
-	double err = 0.0;                        /* 每幅图像的平均误差 */
-	vector<Point2f>  image_points2;             /* 保存重新计算得到的投影点 */
-
-	flags |= cv::fisheye::CALIB_RECOMPUTE_EXTRINSIC;
-	flags |= cv::fisheye::CALIB_CHECK_COND;
-	flags |= cv::fisheye::CALIB_FIX_SKEW;
-	fisheye::calibrate(object_Points, corners_Seq, image_size, intrinsic_matrix, distortion_coeffs, rotation_vectors, translation_vectors, flags, cv::TermCriteria(3, 20, 1e-6));
-	//fisheye::estimateNewCameraMatrixForUndistortRectify(intrinsic_matrix, distortion_coeffs,image_size,transformation, newcameramtx,balance,image_size,0);
-	estimateNewCameraMatrix(intrinsic_matrix, distortion_coeffs, image_size, Matx33d::eye(), newcameramtx, balance, image_size, 0);
-	cout << "\n newcameramtx:\n";
-	cout << newcameramtx << endl;
-	#if 0
-	fisheye::estimateNewCameraMatrixForUndistortRectify(intrinsic_matrix, distortion_coeffs, image_size,
-		Matx33d::eye(), newcameramtx, 0.5, image_size, 0);
-	cv::Vec2d f, c;
-	f = Vec2f(intrinsic_matrix(0, 0), intrinsic_matrix(1, 1));
-	c = Vec2f(intrinsic_matrix(0, 2), intrinsic_matrix(1, 2));
-	cout << f << c << endl;
-	newcameramtx(0, 2) = intrinsic_matrix(0, 2);
-	newcameramtx(1, 2) = intrinsic_matrix(1, 2);
-	newcameramtx(0, 0) = intrinsic_matrix(0, 0)/(1 + balance);
-	newcameramtx(1, 1) = intrinsic_matrix(1, 1)/(1 + balance);
-	#endif
-	fisheye::initUndistortRectifyMap(intrinsic_matrix, distortion_coeffs, Matx33d::eye(), newcameramtx, image_size, CV_32FC1, mapx, mapy);
-	cout << "开始评价标定结果………………" << endl;
-	cout << "每幅图像的定标误差：" << endl;
-	for (unsigned int i = 0; i<filenames.size(); i++)
-	{
-		vector<Point3f> tempPointSet = object_Points[i];
-		/*通过得到的摄像机内外参数，对空间的三维点进行重新投影计算，得到新的投影点*/
-		fisheye::projectPoints(tempPointSet, image_points2, rotation_vectors[i], translation_vectors[i], intrinsic_matrix, distortion_coeffs);
-
-		/*计算新的投影点和旧的投影点之间的误差*/
-		vector<Point2f> tempImagePoint = corners_Seq[i];
-		Mat tempImagePointMat = Mat(1, tempImagePoint.size(), CV_32FC2);
-		Mat image_points2Mat = Mat(1, image_points2.size(), CV_32FC2);
-		for (size_t i = 0; i != tempImagePoint.size(); i++)
-		{
-			image_points2Mat.at<Vec2f>(0, i) = Vec2f(image_points2[i].x, image_points2[i].y);
-			tempImagePointMat.at<Vec2f>(0, i) = Vec2f(tempImagePoint[i].x, tempImagePoint[i].y);
-			//cout << "投影点-" << i << ":" << image_points2Mat.at<Vec2f>(0, i) << endl;
-			//cout << "实际点-" << i << ":" << tempImagePointMat.at<Vec2f>(0, i) << endl;
-		}
-
-		err = norm(image_points2Mat, tempImagePointMat, NORM_L2);
-		total_err += err /= point_counts[i];
-		cout << "图" << filenames[i] << "的平均误差：" << err << "像素" << endl;
-
-#if 1
-		string imageSaveName;
-		std::stringstream StrStm;
-		StrStm << src_path;
-		StrStm << sub_path;
-		StrStm << i;
-		StrStm >> imageSaveName;
-		imageSaveName += "_c.jpg";
-		vector<Point2f> distort;
-		vector<Point2f> undistort;
-		cv::Mat t = imread(filenames[i]);
-		opencvUndistortPoints(tempImagePoint, undistort, intrinsic_matrix, distortion_coeffs);
-		myDistortPoints(undistort, distort, intrinsic_matrix, distortion_coeffs);
-		//cout << "corners" << corners << endl;
-		//cout << "undistort" << undistort << endl;
-		//cout << "imageSaveName:" << imageSaveName << endl;
-		for(int j= 0; j< undistort.size(); j++)
-		{
-			circle(t, tempImagePoint[j], 5, cv::Scalar(0, 100, 0), 2, 8, 0);
-			circle(t, distort[j], 10, cv::Scalar(0, 0, 100), 2, 8, 0);
-			circle(t, undistort[j], 20, cv::Scalar(0, 0, 255), 2, 8, 0);
-		}
-		//cout << "distort" << newdistort << endl;
-		imwrite(imageSaveName, t);
-#endif		
-	}
-	cout << "总体平均误差：" << total_err / image_count << "像素" << endl;
-
-	double r_vec[3]={0.78520514,0.0233998,0.00969251};//eulerAngles[45,1,1]
-	double t_vec[3]={0, 0, 0};
-	double R_matrix[9];
-	CvMat *pr_vec = cvCreateMat(1,3,CV_64FC1);
-	CvMat *pt_vec = cvCreateMat(1,3,CV_64FC1);
-	CvMat *pR_matrix = cvCreateMat(3,3,CV_64FC1);
-	CvMat *pnew_vec = cvCreateMat(1,3,CV_64FC1);
-	//CvMat *pD_mat = cvCreateMat(3,3,CV_64FC1);
-	/************************************************************************
-	保存标定结果
-	*************************************************************************/
-	cout << "保存标定结果......" << endl;
-	Mat rotation_matrix = Mat(3, 3, CV_32FC1, Scalar::all(0)); /* 保存每幅图像的旋转矩阵 */
-	Vec3f eulerAngles;
-	fout << "\n intrinsic_matrix:\n" << endl;
-	fout << intrinsic_matrix << endl;
-	fout << "\n distortion_coeffs:\n";
-	fout << distortion_coeffs << endl;
-	fout << "\n newcameramtx:\n";
-	fout << newcameramtx << endl;
-	cout << "\n intrinsic_matrix:\n" << endl;
-	cout << intrinsic_matrix << endl;
-	cout << "\n distortion_coeffs:\n";
-	cout << distortion_coeffs << endl;
-	cout << "\n newcameramtx:\n";
-	cout << newcameramtx << endl;
-	for (unsigned int i = 0; i<image_Seq.size(); i++)
-	{
-	#if 1	//两种求欧拉角的方法，1：使用cvRodrigues2
-		r_vec[0]=(double)(rotation_vectors[i](0));
-		r_vec[1]=(double)(rotation_vectors[i](1));
-		r_vec[2]=(double)(rotation_vectors[i](2));
-		t_vec[0]=(double)(translation_vectors[i](0));
-		t_vec[1]=(double)(translation_vectors[i](1));
-		t_vec[2]=(double)(translation_vectors[i](2));
-		cvInitMatHeader(pr_vec, 1, 3, CV_64FC1, r_vec, CV_AUTOSTEP);
-		cvInitMatHeader(pR_matrix, 3, 3, CV_64FC1, R_matrix, CV_AUTOSTEP);
-		cvInitMatHeader(pt_vec, 1, 3, CV_64FC1, t_vec, CV_AUTOSTEP);
-		
-		cvRodrigues2(pr_vec, pR_matrix, 0);//从旋转向量求旋转矩阵
-		//cout << "第" << i + 1 << "幅图像的旋转向量：" << endl;
-		//cout << pr_vec << endl;
-		
-		//cvRodrigues2(pR_matrix, pnew_vec, 0);//从旋转矩阵求旋转向量
-		//cout << "第" << i + 1 << "幅图像的旋转向量反求：" << endl;
-		//cout << pnew_vec << endl;
-		
-		Mat rotation_vec_tmp(pr_vec->rows, pr_vec->cols, pr_vec->type, pr_vec->data.fl);
-		Mat translation_vec_tmp(pt_vec->rows, pt_vec->cols, pt_vec->type, pt_vec->data.fl);
-		//cvMat转Mat
-		Mat rotation_matrix_tmp(pR_matrix->rows, pR_matrix->cols, pR_matrix->type, pR_matrix->data.fl);
-		eulerAngles = rotationMatrixToEulerAngles(rotation_matrix_tmp, 1);
-		cout << "第" << i + 1 << "幅图像的欧拉角：" << endl;
-		cout << eulerAngles << endl;
-		//rotation_matrix_tmp = eulerAnglesToRotationMatrix(eulerAngles);
-		eulerAngles = rotationMatrixToEulerAngles(rotation_matrix_tmp, 0);	//0表示输出为弧度，1表示输出为角度，>1表示yz为0输出为弧度
-		#if 1
-		Mat rotationMatrix = eulerAnglesToRotationMatrix(eulerAngles);
-		*pR_matrix = rotationMatrix;
-		cvRodrigues2(pR_matrix, pnew_vec, 0);	//从旋转矩阵求旋转向量
-		//cvRodrigues2(pR_matrix, pD_mat, 0);		//从旋转矩阵求旋转向量
-		Mat mat_tmp(pnew_vec->rows, pnew_vec->cols, pnew_vec->type, pnew_vec->data.fl);		//<lfx
-		//rotation_vectors[i] = rotationMatrixToEulerAngles(mat_tmp, 1);
-		#endif
-		//rotation_vectors[i](0) = r_vec[0];
-		//rotation_vectors[i](1) = r_vec[1];
-		//rotation_vectors[i](2) = r_vec[2];
-	#else	//两种求欧拉角的方法，2：使用Rodrigues
-		Rodrigues(translation_vectors[i], rotation_matrix); 
-		eulerAngles = rotationMatrixToEulerAngles(rotation_matrix, 1);
-	#endif
-
-		cout << "第" << i + 1 << "幅图像的旋转向量：" << endl;
-		cout << "原始:" << rotation_vec_tmp << endl;
-		cout << "反算:" << mat_tmp << endl;
-		cout << "第" << i + 1 << "幅图像的平移向量：" << endl;
-		cout << "原始:" << translation_vec_tmp << endl;
-	}
-	cout << "完成保存" << endl;
-	fout << endl;
-	/************************************************************************
-	显示标定结果
-	*************************************************************************/
-	image_count = 0;
-	cout << "图片数量：" << endl;
-	cout << image_Seq.size() << endl;
-
-	//cout << "角点数量：" << endl;
-	//cout << corners_Seq[image_count].size() << endl;
-	//for (unsigned int i = 0; i < image_Seq.size(); i++)
-	for (unsigned int i = 0; i < filenames.size(); i++)
-	//for (string imageFileName : file_vec)
-	{
-		//cout << "将图片 " << imageFileName << " 进行反畸变..." << endl;
-		Mat t = image_Seq[image_count].clone();
-		#if 0
-		for (unsigned int j = 0; j < corners_Seq[image_count].size(); j++)
-		{
-			circle(image_Seq[image_count], corners_Seq[image_count][j], 10, Scalar(0, 0, 255), 2, 8, 0);
-		}
-		#endif
-		//circle(imageTemp, corners[j], 10, Scalar(0, 0, 255), 2, 8, 0);
-		cv::remap(image_Seq[image_count], t, mapx, mapy, INTER_LINEAR);
-		string imageSaveName;
-		std::stringstream StrStm;
-		StrStm << src_path;
-		StrStm << sub_path;
-		StrStm << image_count;
-		StrStm >> imageSaveName;
-		imageSaveName += "_d.jpg";
-		//cout << filenames[i] << '\n' << imageSaveName << '\n' << endl;
-#if 0
-		Mat imageGray;
-		vector<Point2f> distort;
-		vector<Point2f> undistort;
-		cvtColor(t, imageGray, CV_RGB2GRAY);
-		bool patternfound = findChessboardCorners(imageGray, board_size, corners, CALIB_CB_ADAPTIVE_THRESH + CALIB_CB_NORMALIZE_IMAGE + CALIB_CB_FAST_CHECK);
-		if (!patternfound)
-		{
-			cout << "找不到角点" << endl;
-			continue;
-		}
-		else
-		{
-			cornerSubPix(imageGray, corners, Size(5, 5), Size(-1, -1), TermCriteria(CV_TERMCRIT_EPS + CV_TERMCRIT_ITER, 30, 0.1));
-			myDistortPoints(corners, distort, intrinsic_matrix, distortion_coeffs);
-			opencvUndistortPoints(distort,undistort,intrinsic_matrix,distortion_coeffs);
-			cout << "corners" << corners << endl;
-			cout << "undistort" << undistort << endl;
-			vector<Point2i> newdistort;
-			///Mat newdistort = Mat(distort).astype(int);
-			Mat(distort).convertTo(newdistort, CV_32FC1); 
-			//circle(t, newdistort, 10, Scalar(0, 0, 255), 2, 8, 0);
-			//circle(t, cv::Point(200, 200), 5, cv::Scalar(0, 0, 255),-1);
-			for(i = 0;i< newdistort.size();i++)
-			{
-				circle(t, corners[i], 5, cv::Scalar(0, 100, 0), 2, 8, 0);
-				circle(t, newdistort[i], 5, cv::Scalar(0, 0, 100), 2, 8, 0);
-				circle(t, undistort[i], 20, cv::Scalar(100, 0, 0), 2, 8, 0);
-			}
-			//cout << "distort" << newdistort << endl;
-		}
-		
-#endif
-		imwrite(imageSaveName, t);
-		++image_count;
-	}
-	
-	#if 0
-	{
-		double temp[128];
-		write_CAM_CALIB(temp, 128);
-	}
-	#endif
-
-	cout << "保存结束" << endl;
-	exit(1);
-	return 0;
-}
-
 void cameraToWorld(InputArray cameraMatrix, InputArray rV, InputArray tV, vector<Point2f> imgPoints, vector<Point3f> &worldPoints)
 {
 	Mat invK64, invK;
@@ -801,6 +447,409 @@ void cameraToWorld(InputArray cameraMatrix, InputArray rV, InputArray tV, vector
 		pt.z = 1.0f;
 		worldPoints.push_back(pt);
 	}
+}
+
+int fisheye_calibrate_process(string src_path)
+{
+	char mk_out_dir[256];
+
+	cout << __FUNCTION__ << " : "<< src_path << endl;
+
+	sprintf(mk_out_dir, "mkdir -p %s%s", src_path.c_str(), sub_path.c_str());
+	system(mk_out_dir);
+
+	ofstream fout(src_path+sub_path+"calibrate_result.txt");  /**    保存定标结果的文件     **/
+	getFiles(src_path);							//遍历文件夹下的所有.jpg文件
+	/************************************************************************
+	读取每一幅图像，从中提取出角点，然后对角点进行亚像素精确化
+	*************************************************************************/
+	int image_count = 0;                    /****    图像数量     ****/
+	Size board_size = Size(11,8);            /****    定标板上每行、列的角点数       ****/
+	vector<Point2f> corners;                  /****    缓存每幅图像上检测到的角点       ****/
+	vector<vector<Point2f>>  corners_Seq;    /****  保存检测到的所有角点       ****/
+	vector<Mat>  image_Seq;
+	int successImageNum = 0;                /****   成功提取角点的棋盘图数量    ****/
+	vector<string> filenames;
+	int count = 0;
+	int filecnt = file_vec.size();
+	cv::Mat imagetmp = imread(file_vec[0], 0);
+	int width = imagetmp.cols;//获取图片宽度
+	int height = imagetmp.rows;//获取图片高度
+	cout << "图片尺寸:" << width  << "x" <<  height << endl;
+	cout << "开始提取角点………………" << endl;
+	#if 0
+	tbb::parallel_for(size_t(0), filenames.size(), [&](size_t i){
+		cout << "parallel_for" << i << endl;
+	});
+	#endif
+	#if 1
+	tbb::spin_mutex mutexObj; //互斥锁
+	tbb::parallel_for(0, filecnt, [&board_size,&corners, &mutexObj, &image_Seq, &filenames, &corners_Seq, &successImageNum, &count, &image_count](int i){
+		//cout << i << endl; 
+		cout << "从图片 " << file_vec[i] << "中查找角点..." << endl;
+		std::stringstream StrStm;
+		cv::Mat image = imread(file_vec[i]);
+		Mat imageGray;
+		cvtColor(image, imageGray, CV_RGB2GRAY);
+		bool patternfound = findChessboardCorners(image, board_size, corners, CALIB_CB_ADAPTIVE_THRESH + CALIB_CB_NORMALIZE_IMAGE + CALIB_CB_FAST_CHECK);
+		if (!patternfound)
+		{
+			cout << "找不到角点," << file_vec[i] << "不正确！" << endl;
+		}
+		else
+		{	
+			/* 亚像素精确化 */
+			cornerSubPix(imageGray, corners, Size(5, 5), Size(-1, -1), TermCriteria(CV_TERMCRIT_EPS + CV_TERMCRIT_ITER, 30, 0.1));
+			cout << "从图片 " << file_vec[i] << "中找到角点：" << corners.size() << endl;			
+			mutexObj.lock(); //互斥
+			++image_count;
+			count = count + corners.size();
+			successImageNum = successImageNum + 1;
+			corners_Seq.push_back(corners);
+			filenames.push_back(file_vec[i]);
+			image_Seq.push_back(image);
+			mutexObj.unlock(); //解除互斥
+		}
+	});
+	#else
+	for (string imageFileName : file_vec)
+	{
+		cout << "从图片 " << imageFileName << "中查找角点..." << endl;
+		std::stringstream StrStm;
+		//StrStm << image_count;
+		//StrStm >> imageFileName;
+		//imageFileName += ".jpg";
+		cv::Mat image = imread(imageFileName);
+		/* 提取角点 */
+		Mat imageGray;
+		cvtColor(image, imageGray, CV_RGB2GRAY);
+		bool patternfound = findChessboardCorners(image, board_size, corners, CALIB_CB_ADAPTIVE_THRESH + CALIB_CB_NORMALIZE_IMAGE + CALIB_CB_FAST_CHECK);
+		if (!patternfound)
+		{
+			cout << "找不到角点," << imageFileName << "不正确！" << endl;
+			//exit(1);
+			continue;
+		}
+		else
+		{
+			++image_count;
+			/* 亚像素精确化 */
+			cornerSubPix(imageGray, corners, Size(5, 5), Size(-1, -1), TermCriteria(CV_TERMCRIT_EPS + CV_TERMCRIT_ITER, 30, 0.1));
+			cout << "从图片 " << imageFileName << "中找到角点：" << corners.size() << endl;
+			count = count + corners.size();
+			successImageNum = successImageNum + 1;
+			corners_Seq.push_back(corners);
+			filenames.push_back(imageFileName);
+			image_Seq.push_back(image);
+		}
+	}
+	#endif
+	if(image_count > 3)
+	{
+		cout << "角点提取完成！\n";
+	}
+	else
+	{
+		cout << "图片不够！\n";
+		exit(1);
+	}
+	/************************************************************************
+	摄像机标定
+	*************************************************************************/
+	cout << "开始标定………………" << endl;
+	Size square_size = Size(30, 30);
+	vector<vector<Point3f>>  object_Points;        /****  保存定标板上角点的三维坐标   ****/
+
+	Mat image_points = Mat(1, count, CV_32FC2, Scalar::all(0));  /*****   保存提取的所有角点   *****/
+	vector<int>  point_counts;
+	/* 初始化定标板上角点的三维坐标 */
+	for (int t = 0; t<successImageNum; t++)
+	{
+		vector<Point3f> tempPointSet;
+		for (int j = 0; j<board_size.height; j++)
+		{
+			for (int i = 0; i<board_size.width; i++)
+			{
+				/* 假设定标板放在世界坐标系中z=0的平面上 */
+				Point3f tempPoint;
+				tempPoint.x = (i-board_size.width/2)*square_size.width;//当为实际格子尺寸时表示平移多少距离
+				tempPoint.y = (j-board_size.height/2)*square_size.height;
+				//tempPoint.x = i-board_size.width/2;//*square_size.height;//当为1个单位时，表示平移n个格子，
+				//tempPoint.y = j;//*square_size.width;
+				tempPoint.z = 0;
+				tempPointSet.push_back(tempPoint);
+			}
+		}
+		object_Points.push_back(tempPointSet);
+	}
+
+	#if 0
+	vector<Point2f> imagePointSet;
+	for (int j = 0; j<board_size.height; j++)
+	{
+		for (int i = 0; i<board_size.width; i++)
+		{
+			/* 假设定标板放在世界坐标系中z=0的平面上 */
+			Point2f tempPoint;
+			tempPoint.x = (i-board_size.width/2)*square_size.width;//当为实际格子尺寸时表示平移多少距离
+			tempPoint.y = (j-board_size.height/2)*square_size.height;
+			tempPointSet.push_back(tempPoint);
+		}
+	}
+	#endif
+
+	for (int i = 0; i< successImageNum; i++)
+	{
+		point_counts.push_back(board_size.width*board_size.height);
+	}
+	/* 开始标定 */
+	Size image_size = image_Seq[0].size();
+	cv::Matx33d intrinsic_matrix;    /*****    摄像机内参数矩阵    ****/
+	cv::Vec4d distortion_coeffs;     /*****    摄像机的4个畸变系数：k1,k2,k3,k4****/
+	std::vector<cv::Vec3d> rotation_vectors;                           /* 每幅图像的旋转向量 */
+	std::vector<cv::Vec3d> translation_vectors;                        /* 每幅图像的平移向量 */
+
+	Mat mapx = Mat(image_size, CV_32FC1);
+	Mat mapy = Mat(image_size, CV_32FC1);
+	Mat transformation = Mat::eye(3, 3, CV_32F);
+	//Mat newcameramtx = Mat::eye(3, 3, CV_32F);
+	cv::Matx33d newcameramtx;
+	Mat newcame;
+	double balance = 0;
+	int flags = 0;
+	double total_err = 0.0;                   /* 所有图像的平均误差的总和 */
+	double err = 0.0;                        /* 每幅图像的平均误差 */
+	vector<Point2f>  image_points2;             /* 保存重新计算得到的投影点 */
+
+	flags |= cv::fisheye::CALIB_RECOMPUTE_EXTRINSIC;
+	flags |= cv::fisheye::CALIB_CHECK_COND;
+	flags |= cv::fisheye::CALIB_FIX_SKEW;
+	fisheye::calibrate(object_Points, corners_Seq, image_size, intrinsic_matrix, distortion_coeffs, rotation_vectors, translation_vectors, flags, cv::TermCriteria(3, 20, 1e-6));
+	//fisheye::estimateNewCameraMatrixForUndistortRectify(intrinsic_matrix, distortion_coeffs,image_size,transformation, newcameramtx,balance,image_size,0);
+	estimateNewCameraMatrix(intrinsic_matrix, distortion_coeffs, image_size, Matx33d::eye(), newcameramtx, balance, image_size, 0);
+	cout << "\n newcameramtx:\n";
+	cout << newcameramtx << endl;
+	cout << "标定完成！\n";
+	cout << "生成MAP数据！\n";	
+	#if 0
+	fisheye::estimateNewCameraMatrixForUndistortRectify(intrinsic_matrix, distortion_coeffs, image_size,
+		Matx33d::eye(), newcameramtx, 0.5, image_size, 0);
+	cv::Vec2d f, c;
+	f = Vec2f(intrinsic_matrix(0, 0), intrinsic_matrix(1, 1));
+	c = Vec2f(intrinsic_matrix(0, 2), intrinsic_matrix(1, 2));
+	cout << f << c << endl;
+	newcameramtx(0, 2) = intrinsic_matrix(0, 2);
+	newcameramtx(1, 2) = intrinsic_matrix(1, 2);
+	newcameramtx(0, 0) = intrinsic_matrix(0, 0)/(1 + balance);
+	newcameramtx(1, 1) = intrinsic_matrix(1, 1)/(1 + balance);
+	#endif
+	fisheye::initUndistortRectifyMap(intrinsic_matrix, distortion_coeffs, Matx33d::eye(), newcameramtx, image_size, CV_32FC1, mapx, mapy);
+	cout << "开始评价标定结果………………" << endl;
+	cout << "每幅图像的定标误差：" << endl;
+	for (unsigned int i = 0; i<filenames.size(); i++)
+	{
+		vector<Point3f> tempPointSet = object_Points[i];
+		/*通过得到的摄像机内外参数，对空间的三维点进行重新投影计算，得到新的投影点*/
+		fisheye::projectPoints(tempPointSet, image_points2, rotation_vectors[i], translation_vectors[i], intrinsic_matrix, distortion_coeffs);
+
+		/*计算新的投影点和旧的投影点之间的误差*/
+		vector<Point2f> tempImagePoint = corners_Seq[i];
+		Mat tempImagePointMat = Mat(1, tempImagePoint.size(), CV_32FC2);
+		Mat image_points2Mat = Mat(1, image_points2.size(), CV_32FC2);
+		for (size_t i = 0; i != tempImagePoint.size(); i++)
+		{
+			image_points2Mat.at<Vec2f>(0, i) = Vec2f(image_points2[i].x, image_points2[i].y);
+			tempImagePointMat.at<Vec2f>(0, i) = Vec2f(tempImagePoint[i].x, tempImagePoint[i].y);
+		}
+		#if 0
+		Mat rvec1, tvec1;
+		cv::Mat1f distCoeffs = cv::Mat1f::zeros(1, 4);
+		Vec3f angles;
+		solvePnP(object_Points[i], image_points2, intrinsic_matrix, distortion_coeffs, rvec1, tvec1);
+		Mat R1;
+		Rodrigues(rvec1, R1);//从旋转向量求旋转矩阵
+		angles = rotationMatrixToEulerAngles(R1, 1);
+		cout << "图" << filenames[i] << "的计算欧拉角：" << angles << endl;
+		#endif
+		err = norm(image_points2Mat, tempImagePointMat, NORM_L2);
+		total_err += err /= point_counts[i];
+		cout << "图" << filenames[i] << "的平均误差：" << err << "像素" << endl;
+
+#if 1
+		string imageSaveName;
+		std::stringstream StrStm;
+		StrStm << src_path;
+		StrStm << sub_path;
+		StrStm >> imageSaveName;
+		//char *oldname=(char*)str.data();
+		int pos1 = filenames[i].find_last_of('/');
+		string name2 = filenames[i].substr(pos1 + 1);
+		int pos2 = name2.find('.');
+		string name3 = name2.substr(0,pos2);
+		imageSaveName = imageSaveName + name3 + "_c.jpg";
+
+		vector<Point2f> distort;
+		vector<Point2f> undistort;
+		cv::Mat t = imread(filenames[i]);
+		opencvUndistortPoints(tempImagePoint, undistort, intrinsic_matrix, distortion_coeffs);
+		myDistortPoints(undistort, distort, intrinsic_matrix, distortion_coeffs);
+		for(int j= 0; j< undistort.size(); j++)
+		{
+			circle(t, tempImagePoint[j], 5, cv::Scalar(0, 100, 0), 2, 8, 0);
+			circle(t, distort[j], 10, cv::Scalar(0, 0, 100), 2, 8, 0);
+			circle(t, undistort[j], 20, cv::Scalar(0, 0, 255), 2, 8, 0);
+		}
+		imwrite(imageSaveName, t);
+#endif		
+	}
+	cout << "总体平均误差：" << total_err / image_count << "像素" << endl;
+
+	double r_vec[3]={0.78520514,0.0233998,0.00969251};//eulerAngles[45,1,1]
+	double t_vec[3]={0, 0, 0};
+	double R_matrix[9];
+	CvMat *pr_vec = cvCreateMat(1,3,CV_64FC1);
+	CvMat *pt_vec = cvCreateMat(1,3,CV_64FC1);
+	CvMat *pR_matrix = cvCreateMat(3,3,CV_64FC1);
+	CvMat *pnew_vec = cvCreateMat(1,3,CV_64FC1);
+	//CvMat *pD_mat = cvCreateMat(3,3,CV_64FC1);
+	/************************************************************************
+	保存标定结果
+	*************************************************************************/
+	cout << "保存标定结果......" << endl;
+	Mat rotation_matrix = Mat(3, 3, CV_32FC1, Scalar::all(0)); /* 保存每幅图像的旋转矩阵 */
+	Vec3f eulerAngles;
+	fout << "\n intrinsic_matrix:\n" << endl;
+	fout << intrinsic_matrix << endl;
+	fout << "\n distortion_coeffs:\n";
+	fout << distortion_coeffs << endl;
+	fout << "\n newcameramtx:\n";
+	fout << newcameramtx << endl;
+	cout << "\n intrinsic_matrix:\n" << endl;
+	cout << intrinsic_matrix << endl;
+	cout << "\n distortion_coeffs:\n";
+	cout << distortion_coeffs << endl;
+	cout << "\n newcameramtx:\n";
+	cout << newcameramtx << endl;
+	for (unsigned int i = 0; i<image_Seq.size(); i++)
+	{
+	#if 1	//两种求欧拉角的方法，1：使用cvRodrigues2
+		r_vec[0]=(double)(rotation_vectors[i](0));
+		r_vec[1]=(double)(rotation_vectors[i](1));
+		r_vec[2]=(double)(rotation_vectors[i](2));
+		t_vec[0]=(double)(translation_vectors[i](0));
+		t_vec[1]=(double)(translation_vectors[i](1));
+		t_vec[2]=(double)(translation_vectors[i](2));
+		cvInitMatHeader(pr_vec, 1, 3, CV_64FC1, r_vec, CV_AUTOSTEP);
+		cvInitMatHeader(pR_matrix, 3, 3, CV_64FC1, R_matrix, CV_AUTOSTEP);
+		cvInitMatHeader(pt_vec, 1, 3, CV_64FC1, t_vec, CV_AUTOSTEP);
+		
+		cvRodrigues2(pr_vec, pR_matrix, 0);//从旋转向量求旋转矩阵
+		
+		Mat rotation_vec_tmp(pr_vec->rows, pr_vec->cols, pr_vec->type, pr_vec->data.fl);
+		Mat translation_vec_tmp(pt_vec->rows, pt_vec->cols, pt_vec->type, pt_vec->data.fl);
+		//cvMat转Mat
+		Mat rotation_matrix_tmp(pR_matrix->rows, pR_matrix->cols, pR_matrix->type, pR_matrix->data.fl);
+		eulerAngles = rotationMatrixToEulerAngles(rotation_matrix_tmp, 1);
+		cout << "图" << filenames[i] << "的欧拉角：" << endl;
+		cout << eulerAngles << endl;
+		
+		//rotation_matrix_tmp = eulerAnglesToRotationMatrix(eulerAngles);
+		eulerAngles = rotationMatrixToEulerAngles(rotation_matrix_tmp, 0);	//0表示输出为弧度，1表示输出为角度，>1表示yz为0输出为弧度
+		#if 1
+		Mat rotationMatrix = eulerAnglesToRotationMatrix(eulerAngles);
+		*pR_matrix = rotationMatrix;
+		cvRodrigues2(pR_matrix, pnew_vec, 0);	//从旋转矩阵求旋转向量
+		//cvRodrigues2(pR_matrix, pD_mat, 0);		//从旋转矩阵求旋转向量
+		Mat mat_tmp(pnew_vec->rows, pnew_vec->cols, pnew_vec->type, pnew_vec->data.fl);		//<lfx
+		//rotation_vectors[i] = rotationMatrixToEulerAngles(mat_tmp, 1);
+		#endif
+		//rotation_vectors[i](0) = r_vec[0];
+		//rotation_vectors[i](1) = r_vec[1];
+		//rotation_vectors[i](2) = r_vec[2];
+	#else	//两种求欧拉角的方法，2：使用Rodrigues
+		Rodrigues(translation_vectors[i], rotation_matrix); 
+		eulerAngles = rotationMatrixToEulerAngles(rotation_matrix, 1);
+	#endif
+
+		cout << "图" << filenames[i] << endl;
+		cout << "原始旋转向量:" << rotation_vec_tmp << endl;
+		cout << "反算旋转向量:" << mat_tmp << endl;
+		cout << "原始平移向量:" << translation_vec_tmp << endl;
+	}
+	cout << "完成保存" << endl;
+	fout << endl;
+	/************************************************************************
+	显示标定结果
+	*************************************************************************/
+	cout << "图片数量：" << endl;
+	cout << image_Seq.size() << endl;
+	filecnt = filenames.size();
+	tbb::parallel_for(0, filecnt, [&board_size,&image_Seq,&filenames,&mapx,&mapy,&newcameramtx,&object_Points,&src_path](int i)
+	//for (unsigned int i = 0; i < filenames.size(); i++)
+	{
+		//cout << "将图片 " << imageFileName << " 进行反畸变..." << endl;
+		Mat t;// = image_Seq[image_count].clone();
+		cv::remap(image_Seq[i], t, mapx, mapy, INTER_LINEAR);
+		string imageSaveName, imageSaveName1, imageSaveName2;
+		std::stringstream StrStm;
+		StrStm << src_path;
+		StrStm << sub_path;
+		StrStm >> imageSaveName;
+		int pos1 = filenames[i].find_last_of('/');
+		string name2 = filenames[i].substr(pos1 + 1);
+		int pos2 = name2.find('.');
+		string name3 = name2.substr(0,pos2);
+		imageSaveName1 = imageSaveName + name3 + "_d.jpg";
+		imwrite(imageSaveName1, t);		
+#if 1
+		Mat imagegray;
+		vector<Point2f> undistortcorners;
+		cvtColor(t, imagegray, CV_RGB2GRAY);
+		bool found = findChessboardCorners(t, board_size, undistortcorners, CALIB_CB_ADAPTIVE_THRESH + CALIB_CB_NORMALIZE_IMAGE + CALIB_CB_FAST_CHECK);
+		if (!found)
+		{
+			cout << "找不到角点" << endl;
+		}
+		else
+		{
+			//cornerSubPix(imagegray, undistortcorners, Size(5, 5), Size(-1, -1), TermCriteria(CV_TERMCRIT_EPS + CV_TERMCRIT_ITER, 30, 0.1));
+			#if 1
+			Mat rvec1, tvec1;
+			cv::Mat1f distCoeffs = cv::Mat(1, 5, CV_32FC1, cv::Scalar::all(0)); /* 摄像机的5个畸变系数：k1,k2,p1,p2,k3 */
+			Vec3f angles;
+			solvePnP(object_Points[i], undistortcorners, newcameramtx, distCoeffs, rvec1, tvec1);
+			Mat R1;
+			Rodrigues(rvec1, R1);//从旋转向量求旋转矩阵
+			angles = rotationMatrixToEulerAngles(R1, 1);
+			cout << "图" << filenames[i] << "的计算欧拉角：" << angles << endl;
+			#endif
+			angles = rotationMatrixToEulerAngles(R1, 2);	//0表示输出为弧度，1表示输出为角度，>1表示yz为0输出为弧度
+			CvMat *pRmatrix = cvCreateMat(3,3,CV_64FC1);
+			CvMat *pnewvec = cvCreateMat(1,3,CV_64FC1);
+			Mat rotationMatrix = eulerAnglesToRotationMatrix(angles);
+			*pRmatrix = rotationMatrix;
+			cvRodrigues2(pRmatrix, pnewvec, 0);	//从旋转矩阵求旋转向量
+			vector<Point2f>  image_points3; 
+			Mat mat_tmp(pnewvec->rows, pnewvec->cols, pnewvec->type, pnewvec->data.fl);		//<lfx
+			vector<Point2f> tempImagePoint = undistortcorners;
+			projectPoints(object_Points[i], mat_tmp, tvec1, newcameramtx, distCoeffs, image_points3);
+			Mat image_points2Mat = Mat(1, image_points3.size(), CV_32FC2);
+			
+			for (size_t i = 0; i != tempImagePoint.size(); i++)
+			{
+				image_points2Mat.at<Vec2f>(0, i) = Vec2f(image_points3[i].x, image_points3[i].y);
+			}
+			Mat h, im1Reg;
+			h = findHomography(undistortcorners, image_points2Mat, RANSAC);
+			warpPerspective(t, t, h, t.size());
+			imageSaveName2 = imageSaveName + name3 + "_warp.jpg";
+			imwrite(imageSaveName2, t);
+		}	
+#endif
+	});
+	cout << "保存结束" << endl;
+	exit(1);
+	return 0;
 }
 
 int normal_calibrate_process(string src_path)
