@@ -17,7 +17,8 @@ g++ -g -Wall -Wl,-rpath=./lib -I/usr/include/ -L./lib   -c -o calibrate_fisheye.
 #include <getopt.h>/* getopt_long() */
 #include <iostream>
 #include <sstream>
-#include <time.h>
+//#include <time.h>
+#include <sys/time.h>
 #include <stdio.h>
 #include <fstream>
 #include <cmath>
@@ -449,6 +450,13 @@ void cameraToWorld(InputArray cameraMatrix, InputArray rV, InputArray tV, vector
 	}
 }
 
+static int getCurTime(void)
+{
+	struct timeval tv;    
+	gettimeofday(&tv,NULL);    //该函数在sys/time.h头文件中
+	return tv.tv_sec * 1000 + tv.tv_usec / 1000;       
+}
+
 int fisheye_calibrate_process(string src_path)
 {
 	char mk_out_dir[256];
@@ -458,7 +466,7 @@ int fisheye_calibrate_process(string src_path)
 	sprintf(mk_out_dir, "mkdir -p %s%s", src_path.c_str(), sub_path.c_str());
 	system(mk_out_dir);
 
-	ofstream fout(src_path+sub_path+"calibrate_result.txt");  /**    保存定标结果的文件     **/
+	ofstream fout(src_path+sub_path+"calibration.csv");  /**    保存定标结果的文件     **/
 	getFiles(src_path);							//遍历文件夹下的所有.jpg文件
 	/************************************************************************
 	读取每一幅图像，从中提取出角点，然后对角点进行亚像素精确化
@@ -573,16 +581,17 @@ int fisheye_calibrate_process(string src_path)
 				/* 假设定标板放在世界坐标系中z=0的平面上 */
 				Point3f tempPoint;
 				tempPoint.x = (i-board_size.width/2)*square_size.width;//当为实际格子尺寸时表示平移多少距离
-				tempPoint.y = (j-board_size.height/2)*square_size.height;
+				tempPoint.y = ((float)(2.0f*j-board_size.height)/2.0f)*square_size.height;
 				//tempPoint.x = i-board_size.width/2;//*square_size.height;//当为1个单位时，表示平移n个格子，
 				//tempPoint.y = j;//*square_size.width;
 				tempPoint.z = 0;
+
 				tempPointSet.push_back(tempPoint);
 			}
 		}
 		object_Points.push_back(tempPointSet);
 	}
-
+	cout << "object_Points:"<< object_Points[0] << endl;
 	#if 0
 	vector<Point2f> imagePointSet;
 	for (int j = 0; j<board_size.height; j++)
@@ -675,7 +684,7 @@ int fisheye_calibrate_process(string src_path)
 		total_err += err /= point_counts[i];
 		cout << "图" << filenames[i] << "的平均误差：" << err << "像素" << endl;
 
-#if 1
+#if 0
 		string imageSaveName;
 		std::stringstream StrStm;
 		StrStm << src_path;
@@ -716,20 +725,14 @@ int fisheye_calibrate_process(string src_path)
 	保存标定结果
 	*************************************************************************/
 	cout << "保存标定结果......" << endl;
+	fout << "dim,"<< width << ","<< height << "\n";
+	fout << "cameraMatrix,";
+	fout << intrinsic_matrix(0, 0) << "," << intrinsic_matrix(1, 1) << "," << intrinsic_matrix(0, 2) << "," << intrinsic_matrix(1, 2) <<  "\n";
+	fout << "distCoefs,";
+	fout << distortion_coeffs(0) << "," << distortion_coeffs(1) << "," << distortion_coeffs(2) << "," << distortion_coeffs(3) << endl;
+	
 	Mat rotation_matrix = Mat(3, 3, CV_32FC1, Scalar::all(0)); /* 保存每幅图像的旋转矩阵 */
 	Vec3f eulerAngles;
-	fout << "\n intrinsic_matrix:\n" << endl;
-	fout << intrinsic_matrix << endl;
-	fout << "\n distortion_coeffs:\n";
-	fout << distortion_coeffs << endl;
-	fout << "\n newcameramtx:\n";
-	fout << newcameramtx << endl;
-	cout << "\n intrinsic_matrix:\n" << endl;
-	cout << intrinsic_matrix << endl;
-	cout << "\n distortion_coeffs:\n";
-	cout << distortion_coeffs << endl;
-	cout << "\n newcameramtx:\n";
-	cout << newcameramtx << endl;
 	for (unsigned int i = 0; i<image_Seq.size(); i++)
 	{
 	#if 1	//两种求欧拉角的方法，1：使用cvRodrigues2
@@ -784,10 +787,10 @@ int fisheye_calibrate_process(string src_path)
 	cout << "图片数量：" << endl;
 	cout << image_Seq.size() << endl;
 	filecnt = filenames.size();
+	int tim1= getCurTime();
 	tbb::parallel_for(0, filecnt, [&board_size,&image_Seq,&filenames,&mapx,&mapy,&newcameramtx,&object_Points,&src_path](int i)
 	//for (unsigned int i = 0; i < filenames.size(); i++)
 	{
-		//cout << "将图片 " << imageFileName << " 进行反畸变..." << endl;
 		Mat t;// = image_Seq[image_count].clone();
 		cv::remap(image_Seq[i], t, mapx, mapy, INTER_LINEAR);
 		string imageSaveName, imageSaveName1, imageSaveName2;
@@ -847,8 +850,10 @@ int fisheye_calibrate_process(string src_path)
 		}	
 #endif
 	});
+	int tim2= getCurTime();
+	cout<<"Running time:"<< tim2 - tim1 << "ms" <<endl;
 	cout << "保存结束" << endl;
-	exit(1);
+	//exit(1);
 	return 0;
 }
 
@@ -861,7 +866,7 @@ int normal_calibrate_process(string src_path)
 	sprintf(mk_out_dir, "mkdir -p %s%s", src_path.c_str(), sub_path.c_str());
 	system(mk_out_dir);
 
-	ofstream fout(src_path+sub_path+"calibrate_result.txt");  /**    保存定标结果的文件     **/
+	ofstream fout(src_path+sub_path+"calibration.csv");  /**    保存定标结果的文件     **/
 	getFiles(src_path);							//遍历文件夹下的所有.jpg文件
 	/************************************************************************
 	读取每一幅图像，从中提取出角点，然后对角点进行亚像素精确化
@@ -880,10 +885,6 @@ int normal_calibrate_process(string src_path)
 	for (string imageFileName : file_vec)
 	{
 		cout << "从图片 " << imageFileName << "中查找角点..." << endl;
-		std::stringstream StrStm;
-		//StrStm << image_count;
-		//StrStm >> imageFileName;
-		//imageFileName += ".jpg";
 		cv::Mat image = imread(imageFileName);
 		/* 提取角点 */
 		Mat imageGray;
@@ -891,7 +892,7 @@ int normal_calibrate_process(string src_path)
 		bool patternfound = findChessboardCorners(image, board_size, corners, CALIB_CB_ADAPTIVE_THRESH + CALIB_CB_NORMALIZE_IMAGE + CALIB_CB_FAST_CHECK);
 		if (!patternfound)
 		{
-			cout << "找不到角点," << imageFileName << "不正确！" << endl;
+			cout << "找不到角点" << imageFileName << "不正确！" << endl;
 			//exit(1);
 			continue;
 		}
@@ -1179,28 +1180,31 @@ int get_book_corner(double book_distance, double book_width, double book_heigth,
 int main(int argc, char* argv[])
 {
 	int res;
-	int n_counts = 1;
+	int method = 1;
 	//string file_path = "/data/cap/";
 	string file_path = "./cap/";
 	printf("ver = %d\n", SDK_VER);
-	while ((res = getopt(argc, argv, "p:n")) != -1)
+	while ((res = getopt(argc, argv, "p:t:")) != -1)
 	{
 		switch (res)
 		{
 			case 'p':
 				file_path = optarg;
 				break;
-			case 'n':
-				n_counts = atoi(optarg);
+			case 't':
+				method = atoi(optarg);
 				break;
 			default:
 				break;
 		}
 	}
-
-	fisheye_calibrate_process(file_path);
-
-	normal_calibrate_process(file_path + sub_path);
-
+	if(method == 1)
+	{
+		fisheye_calibrate_process(file_path);
+	}
+	else
+	{
+		normal_calibrate_process(file_path);
+	}
 	return 0;
 }
