@@ -25,13 +25,12 @@ target_link_libraries(test ${OpenCV_LIBS})
 #include <linux/videodev2.h>
 #include <iostream>
 
-#include <opencv2/dnn.hpp>
 #include <opencv2/imgproc.hpp>
 #include <opencv2/highgui.hpp>
 
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <netdb.h> 
+//#include <sys/socket.h>
+//#include <netinet/in.h>
+//#include <netdb.h> 
 
 using namespace cv;
 using namespace std;
@@ -54,6 +53,7 @@ int main(int argc, char* argv[])
 {
 	int res;
 	int capnum = 0;
+	static char* wh;
 	dev_name = "/dev/video0";
 	ipv4addr = "192.168.199.142";
 	ipv4port = atoi("12345");
@@ -93,19 +93,14 @@ int main(int argc, char* argv[])
 				}
 			break;
 			case 'w':
-				width = atoi(optarg);
-				if(width == 1920)
-					height = 1080;
-				else if(width >= 2048)
-				{
-					width = 2592;
-					height = 1944;
-				}
-				else
-				{
-					width = 1280;
-					height = 720;
-				}
+				char *tokenPtr;
+				wh = optarg;
+				tokenPtr = strtok(optarg, "*");
+				width = atoi(tokenPtr);
+				//printf("token:%s\n",tokenPtr);
+				tokenPtr = strtok(NULL, "*");
+				//printf("token:%s\n",tokenPtr);
+				height = atoi(tokenPtr);
 			break;
 			case 'p':
 				ipv4port = atoi(optarg);
@@ -131,56 +126,10 @@ int main(int argc, char* argv[])
 	{  
 		return -1;  
 	}
-	
-	int sockfd, connected;
-	struct sockaddr_in serv_addr;
-	struct hostent *server;
-	connected = 0;
-	sockfd = socket(AF_INET, SOCK_STREAM, 0);
-	if (sockfd < 0)
-		printf("ERROR opening socket");
-	server = gethostbyname(ipv4addr);//这里填IP地址
-	if (server == NULL) 
-	{
-		fprintf(stderr, "ERROR, no such host\n");
-	}
-	else
-	{
-		bzero((char *)&serv_addr, sizeof(serv_addr));
-		serv_addr.sin_family = AF_INET;
-		bcopy((char *)server->h_addr,
-		(char *)&serv_addr.sin_addr.s_addr,
-		server->h_length);
-		serv_addr.sin_port = htons(ipv4port);
-		if(connect(sockfd, (struct sockaddr *) &serv_addr, sizeof(serv_addr)) < 0)
-		{
-			printf("ERROR connecting\n");
-		}
-		else
-		{
-			connected = 1;
-			printf("Connected!!\n");
-		}
-		
-	}
 	Mat frame;
 	int tm3 = getCurTime();
 	cap>>frame;
 	int tm4 = getCurTime();
-	Mat gray;
-	if(connected)
-	{
-		
-		//int bytes = send(sockfd, frame.data, frame.total()*frame.elemSize(), 0);
-		cvtColor(frame, gray, CV_BGR2GRAY);
-		int bytes = send(sockfd, frame.data, frame.total()*frame.elemSize(), 0);
-		
-		//vector<unsigned char> img_encode;
-		//cv::imencode(".jpg", frame, img_encode);
-		printf("send %d\r\n", bytes);
-		
-		//ssize_t recv(int sockfd, void *buff, size_t nbytes, int flags);
-	}
 	imwrite(save_name, frame);
 	printf("save jpg use time %ums\r\n", tm4-tm3);
 	return 0;  
