@@ -28,6 +28,6 @@ message(STATUS "    include path: ${OpenCV_INCLUDE_DIRS}")
 add_executable(calibrate camcalibrate.cpp)
 
 # Link your application with OpenCV libraries
-#target_link_libraries(calibrate ${OpenCV_LIBS})
-target_link_libraries(calibrate -lopencv_core -lopencv_highgui -lopencv_imgproc -lopencv_imgcodecs -lopencv_flann -lopencv_videoio -ljpeg)
+#target_link_libraries(calibrate ${OpenCV_LIBS})target_link_libraries(calibrate -lopencv_core -lopencv_calib3d -lopencv_highgui -lopencv_imgproc -lopencv_imgcodecs -lopencv_flann -lopencv_videoio -ljpeg)
+target_link_libraries(calibrate -lopencv_core  -lopencv_calib3d -lopencv_highgui -lopencv_imgproc -lopencv_imgcodecs -lopencv_flann -lopencv_videoio -ljpeg)
 target_link_libraries(calibrate -lpthread -lm -ltbb -lstdc++)
