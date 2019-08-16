@@ -466,7 +466,7 @@ int fisheye_calibrate_process(string src_path)
 	sprintf(mk_out_dir, "mkdir -p %s%s", src_path.c_str(), sub_path.c_str());
 	system(mk_out_dir);
 
-	ofstream fout(src_path+sub_path+"calibration.csv");  /**    保存定标结果的文件     **/
+	ofstream fout(src_path+"calibration.csv");  /**    保存定标结果的文件     **/
 	getFiles(src_path);							//遍历文件夹下的所有.jpg文件
 	/************************************************************************
 	读取每一幅图像，从中提取出角点，然后对角点进行亚像素精确化
@@ -502,7 +502,7 @@ int fisheye_calibrate_process(string src_path)
 		bool patternfound = findChessboardCorners(image, board_size, corners, CALIB_CB_ADAPTIVE_THRESH + CALIB_CB_NORMALIZE_IMAGE + CALIB_CB_FAST_CHECK);
 		if (!patternfound)
 		{
-			cout << "找不到角点," << file_vec[i] << "不正确！" << endl;
+			cout << "找不到角点" << file_vec[i] << "不正确！" << endl;
 		}
 		else
 		{	
@@ -534,7 +534,7 @@ int fisheye_calibrate_process(string src_path)
 		bool patternfound = findChessboardCorners(image, board_size, corners, CALIB_CB_ADAPTIVE_THRESH + CALIB_CB_NORMALIZE_IMAGE + CALIB_CB_FAST_CHECK);
 		if (!patternfound)
 		{
-			cout << "找不到角点," << imageFileName << "不正确！" << endl;
+			cout << "找不到角点" << imageFileName << "不正确！" << endl;
 			//exit(1);
 			continue;
 		}
@@ -580,10 +580,10 @@ int fisheye_calibrate_process(string src_path)
 			{
 				/* 假设定标板放在世界坐标系中z=0的平面上 */
 				Point3f tempPoint;
-				tempPoint.x = (i-board_size.width/2)*square_size.width;//当为实际格子尺寸时表示平移多少距离
-				tempPoint.y = ((float)(2.0f*j-board_size.height)/2.0f)*square_size.height;
-				//tempPoint.x = i-board_size.width/2;//*square_size.height;//当为1个单位时，表示平移n个格子，
-				//tempPoint.y = j;//*square_size.width;
+				//tempPoint.x = (i-board_size.width/2)*square_size.width;//当为实际格子尺寸时表示平移多少距离
+				//tempPoint.y = ((float)(2.0f*j-board_size.height)/2.0f)*square_size.height;
+				tempPoint.x = i;//*square_size.height;//当为1个单位时，表示平移n个格子，-board_size.width/2
+				tempPoint.y = j;//*square_size.width;
 				tempPoint.z = 0;
 
 				tempPointSet.push_back(tempPoint);
@@ -624,7 +624,7 @@ int fisheye_calibrate_process(string src_path)
 	//Mat newcameramtx = Mat::eye(3, 3, CV_32F);
 	cv::Matx33d newcameramtx;
 	Mat newcame;
-	double balance = 0;
+	double balance = 0.5;
 	int flags = 0;
 	double total_err = 0.0;                   /* 所有图像的平均误差的总和 */
 	double err = 0.0;                        /* 每幅图像的平均误差 */
@@ -642,7 +642,7 @@ int fisheye_calibrate_process(string src_path)
 	cout << "生成MAP数据！\n";	
 	#if 0
 	fisheye::estimateNewCameraMatrixForUndistortRectify(intrinsic_matrix, distortion_coeffs, image_size,
-		Matx33d::eye(), newcameramtx, 0.5, image_size, 0);
+		Matx33d::eye(), newcameramtx, 0, image_size, 0);
 	cv::Vec2d f, c;
 	f = Vec2f(intrinsic_matrix(0, 0), intrinsic_matrix(1, 1));
 	c = Vec2f(intrinsic_matrix(0, 2), intrinsic_matrix(1, 2));

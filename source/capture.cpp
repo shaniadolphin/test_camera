@@ -58,8 +58,8 @@ target_link_libraries(capture -lpthread -lm -lstdc++)
 #include <arpa/inet.h>
 
 #include "opencv2/core.hpp"
-#include <opencv2/imgproc.hpp>
-#include <opencv2/highgui.hpp>
+#include "opencv2/imgproc.hpp"
+#include "opencv2/highgui.hpp"
 
 using namespace cv;
 using namespace std;
@@ -731,10 +731,10 @@ int main(int argc, char* argv[])
 	file_name = "save.jpg";
 	int listenfd;
 	
-	if( (listenfd = socket(AF_INET, SOCK_STREAM, 0)) == -1 ){
-		printf("create socket error: %s(errno: %d)\n",strerror(errno),errno);
-		return 0;
-	}
+	//if( (listenfd = socket(AF_INET, SOCK_STREAM, 0)) == -1 ){
+	//	printf("create socket error: %s(errno: %d)\n",strerror(errno),errno);
+	//	return 0;
+	//}
 	while((res = getopt(argc, argv, "w:i:d:t:muh")) != -1)
 	{
 		switch(res)

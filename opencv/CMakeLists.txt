@@ -19,16 +19,16 @@ find_package(OpenCV REQUIRED)
 # in the OpenCVConfig.cmake file.
 # Print some message showing some of them
 #message(STATUS "OpenCV library status:")
-message(STATUS "    config: ${OpenCV_DIR}")
-message(STATUS "    version: ${OpenCV_VERSION}")
-message(STATUS "    include path: ${OpenCV_INCLUDE_DIRS}")
+message(STATUS "OpenCV_DIR config: ${OpenCV_DIR}")
+message(STATUS "OpenCV_VERSION: ${OpenCV_VERSION}")
+message(STATUS "OpenCV_INCLUDE_DIRS: ${OpenCV_INCLUDE_DIRS}")
 
 # Declare the executable target built from your sources
 add_executable(capture capture.cpp)
 
 # Link your application with OpenCV libraries
 # target_link_libraries(calibrate ${OpenCV_LIBS})
-target_link_libraries(capture -lopencv_core -lopencv_calib3d -lopencv_features2d -lopencv_highgui -lopencv_imgproc -lopencv_imgcodecs -lopencv_flann -lopencv_videoio -ljpeg)
-target_link_libraries(capture -lpthread -lm -lstdc++)
+target_link_libraries(capture -lopencv_core -lopencv_calib3d -lopencv_features2d -lopencv_highgui -lopencv_imgproc -lopencv_imgcodecs -lopencv_flann -lopencv_videoio)
+target_link_libraries(capture -lpthread -lm  -ljpeg -lstdc++)
 
 # ldd capture查看链接到的库

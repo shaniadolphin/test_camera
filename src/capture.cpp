@@ -1,10 +1,37 @@
 /****************
-cmake_minimum_required(VERSION 2.8)
-project(test)
+# cmake needs this line
+cmake_minimum_required(VERSION 3.1)
+
+# Enable C++11
+set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD_REQUIRED TRUE)
+
+# Define project name
+project(capture)
+
+# Find OpenCV, you may need to set OpenCV_DIR variable
+# to the absolute path to the directory containing OpenCVConfig.cmake file
+# via the command line or GUI
+#set(OpenCV_DIR "/mnt/h/proj/opencv/opencv-4.1.0/release")
 find_package(OpenCV REQUIRED)
-add_executable(test capture.cpp)
-target_link_libraries(test ${OpenCV_LIBS})
-#./test -d /dev/video2 -w 1920 -m
+
+# If the package has been found, several variables will
+# be set, you can find the full list with descriptions
+# in the OpenCVConfig.cmake file.
+# Print some message showing some of them
+#message(STATUS "OpenCV library status:")
+message(STATUS "    config: ${OpenCV_DIR}")
+message(STATUS "    version: ${OpenCV_VERSION}")
+message(STATUS "    libraries: ${OpenCV_LIBS}")
+message(STATUS "    include path: ${OpenCV_INCLUDE_DIRS}")
+
+# Declare the executable target built from your sources
+add_executable(capture capture.cpp)
+
+# Link your application with OpenCV libraries
+target_link_libraries(capture ${OpenCV_LIBS})
+target_link_libraries(capture -lpthread -lm -lstdc++)
+#./capture -d /dev/video0 -i 2.jpg -w 1920*1440 -t 1
 ***************/
 
 #include <stdio.h>
@@ -25,14 +52,14 @@ target_link_libraries(test ${OpenCV_LIBS})
 #include <linux/videodev2.h>
 #include <iostream>
 
-#include <opencv2/dnn.hpp>
-#include <opencv2/imgproc.hpp>
-#include <opencv2/highgui.hpp>
+#include "opencv2/core.hpp"
+#include "opencv2/imgproc.hpp"
+#include "opencv2/highgui.hpp"
 
 using namespace cv;
 using namespace std;
 
-#define  BUF_CNT   6
+#define  BUF_CNT   5
 #define CLEAR(x) memset (&(x), 0, sizeof (x))
 
 typedef enum {
@@ -48,25 +75,92 @@ typedef struct VideoBuffer {
 static io_method io = IO_METHOD_MMAP;
 static int fd = -1;
 static VideoBuffer buffers[BUF_CNT];
-static unsigned int n_buffers = 0;
-static unsigned int width = 1280;
-static unsigned int height = 720;
+static unsigned int n_buffers = 2;
+static unsigned int n_pics = 1;
+static unsigned int width = 1920;
+static unsigned int height = 1080;
 
 static unsigned char test_buf[2592*1944*3] = {0};
 static unsigned char covBuf[2592*1944*3];
 FILE *fp;
 const char* dev_name = nullptr;
-std::string save_name = "save.jpg";
- 
+//std::string save_name = "save.jpg";
+char* save_name;
+const char* file_name = nullptr;
+
+struct timeval tv;
+
 static void errno_exit(const char * s) {
 	fprintf(stderr, "%s error %d, %s/n", s, errno, strerror(errno));
 	exit(EXIT_FAILURE);
 }
 
 static int getCurTime(){
-	struct timeval tv;    
-	gettimeofday(&tv,NULL);    //该函数在sys/time.h头文件中
+	gettimeofday(&tv, NULL);    //该函数在sys/time.h头文件中
 	return tv.tv_sec * 1000 + tv.tv_usec / 1000;       
+}
+
+void myUndistortPoints(const std::vector<cv::Point2d> & src, std::vector<cv::Point2d> & dst,
+const cv::Mat & cameraMatrix, const cv::Mat & distortionCoeff)
+{
+
+	dst.clear();
+	double fx = cameraMatrix.at<double>(0, 0);
+	double fy = cameraMatrix.at<double>(1, 1);
+	double ux = cameraMatrix.at<double>(0, 2);
+	double uy = cameraMatrix.at<double>(1, 2);
+
+	double k1 = distortionCoeff.at<double>(0, 0);
+	double k2 = distortionCoeff.at<double>(0, 1);
+	double p1 = distortionCoeff.at<double>(0, 2);
+	double p2 = distortionCoeff.at<double>(0, 3);
+	double k3 = distortionCoeff.at<double>(0, 4);
+	double k4 = 0;
+	double k5 = 0;
+	double k6 = 0;
+
+	for(unsigned int i = 0; i < src.size(); i++)
+	{
+		const cv::Point2d & p = src[i];
+		//首先进行坐标转换；
+		double xDistortion = (p.x - ux) / fx;
+		double yDistortion = (p.y - uy) / fy;
+		double xCorrected, yCorrected;
+		double x0 = xDistortion;
+		double y0 = yDistortion;
+		//这里使用迭代的方式进行求解，因为根据2中的公式直接求解是困难的，所以通过设定初值进行迭代，这也是OpenCV的求解策略；
+		for (int j = 0; j < 10; j++)
+		{
+			double r2 = xDistortion*xDistortion + yDistortion*yDistortion;
+			double distRadialA = 1 / (1. + k1 * r2 + k2 * r2 * r2 + k3 * r2 * r2 * r2);
+			double distRadialB = 1. + k4 * r2 + k5 * r2 * r2 + k6 * r2 * r2 * r2;
+			double deltaX = 2. * p1 * xDistortion * yDistortion + p2 * (r2 + 2. * xDistortion * xDistortion);
+			double deltaY = p1 * (r2 + 2. * yDistortion * yDistortion) + 2. * p2 * xDistortion * yDistortion;
+			xCorrected = (x0 - deltaX)* distRadialA * distRadialB;
+			yCorrected = (y0 - deltaY)* distRadialA * distRadialB;
+			xDistortion = xCorrected;
+			yDistortion = yCorrected;
+		}
+		//进行坐标变换；
+		xCorrected = xCorrected * fx + ux;
+		yCorrected = yCorrected * fy + uy;
+		dst.push_back(cv::Point2d(xCorrected, yCorrected));
+	}
+}
+
+static void savejpg(void)
+{
+	int tm3 = getCurTime();
+	//Mat mat_t(height, width, CV_8UC2, (unsigned char*)buffers[0].start);
+	Mat mat_t(height, width, CV_8UC2, test_buf);
+	Mat bgrImg_t(height, width, CV_8UC3, covBuf);
+	cvtColor(mat_t, bgrImg_t, CV_YUV2BGR_YUYV);
+	int tm4 = getCurTime();
+	if(n_pics <= 1)
+		imwrite(file_name, bgrImg_t);
+	else
+		imwrite(save_name, bgrImg_t);
+	printf("save file using time: %ums\r\n", tm4-tm3);
 }
 
 static int xioctl(int fd, int request, void * arg) {
@@ -84,7 +178,7 @@ static void process_image(const void * p, int size) {
 static int read_frame(void) {
 	struct v4l2_buffer buf;
 	unsigned int i;
-	int tim1 = getCurTime();
+	//int tim1 = getCurTime();
 	switch (io) {
 	case IO_METHOD_READ:
 		/* Nothing to do. */
@@ -105,7 +199,9 @@ static int read_frame(void) {
 			}
 		}
 		assert(buf.index < n_buffers);
+		#if 1
 		process_image(buffers[buf.index].start, buf.length);
+		#endif
 		if (-1 == xioctl(fd, VIDIOC_QBUF, &buf))
 			errno_exit("VIDIOC_QBUF");
 		break;
@@ -129,21 +225,28 @@ static int read_frame(void) {
 					&& buf.length == buffers[i].length)
 				break;
 		assert(i < n_buffers);
+		#if 1
 		process_image((void *) buf.m.userptr, buf.length);
+		#endif
 		if (-1 == xioctl(fd, VIDIOC_QBUF, &buf))
 			errno_exit("VIDIOC_QBUF");
  
 		break;
 	}
-	int tim2= getCurTime();
-	printf("time %ums\n", tim2 - tim1);
+	//int tim2= getCurTime();
+	//printf("time %ums\n", tim2 - tim1);
 	return 1;
 }
 
 static void mainloop(void) {
+	#if 1
 	unsigned int count;
-	count = 10;
-	while (count-- > 0) {
+	char str[50];
+	if(n_pics <= 1)
+		count = 5;
+	else
+		count = n_pics;
+	while (count-- > 0){
 		for (;;) {
 			//int tim1 = getCurTime();
 			fd_set fds;
@@ -168,10 +271,58 @@ static void mainloop(void) {
 			{
 				//int tim2= getCurTime();
 				//printf("time %ums\n", tim2 - tim1);
+				gettimeofday(&tv, NULL);    //该函数在sys/time.h头文件中
+
+				if(n_pics <= 1)
+				{
+					if(count == 1)
+						savejpg();
+				}
+				else
+				{
+					printf("%dmin-%dms:start\n", (int)(tv.tv_sec)%100,(int)(tv.tv_usec)/1000);
+					sprintf(str,"%d_%s",count, file_name);
+					save_name = str;
+					gettimeofday(&tv, NULL);    //该函数在sys/time.h头文件中
+					printf("%dmin-%dms:%s\n", (int)(tv.tv_sec)%100,(int)(tv.tv_usec)/1000, save_name);
+					savejpg();
+					gettimeofday(&tv, NULL);    //该函数在sys/time.h头文件中
+					printf("%dmin-%dms:done\n", (int)(tv.tv_sec)%100,(int)(tv.tv_usec)/1000);					
+				}
 				break;
 			}/* EAGAIN - continue select loop. */
 		}
 	}
+	#else
+		for (;;) {
+		//int tim1 = getCurTime();
+		fd_set fds;
+		struct timeval tv;
+		int r;
+		FD_ZERO(&fds);
+		FD_SET(fd, &fds);
+		/* Timeout. */
+		tv.tv_sec = 2;
+		tv.tv_usec = 0;
+		r = select(fd + 1, &fds, NULL, NULL, &tv);
+		if (-1 == r) {
+			if (EINTR == errno)
+				continue;
+			errno_exit("select");
+		}
+		if (0 == r) {
+			fprintf(stderr, "select timeout/n");
+			exit(EXIT_FAILURE);
+		}
+		if (read_frame())
+		{
+			//int tim2= getCurTime();
+			//printf("time %ums\n", tim2 - tim1);
+			break;
+		}/* EAGAIN - continue select loop. */
+	}	
+	
+	#endif
 }
  
 static void stop_capturing(void) {
@@ -273,7 +424,11 @@ static void init_read(unsigned int buffer_size) {
 static void init_mmap(void) {
 	struct v4l2_requestbuffers req;
 	CLEAR(req);
+	#if 1
 	req.count = 4;
+	#else
+	req.count = 2;	
+	#endif
 	req.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
 	req.memory = V4L2_MEMORY_MMAP;
 	if (-1 == xioctl(fd, VIDIOC_REQBUFS, &req)) {
@@ -413,16 +568,19 @@ static void init_device(void) {
 	if(-1 == xioctl(fd, VIDIOC_G_FMT, &fmt)) {
 		printf("Unable to get format\n");
 		errno_exit("VIDIOC_G_FMT");
-	} else {
-		 printf("fmt.type:\t\t%d\n",fmt.type);
-		 printf("pix.pixelformat:\t%c%c%c%c\n",
+	} 
+	else {
+		/**
+		printf("fmt.type:\t\t%d\n",fmt.type);
+		printf("pix.pixelformat:\t%c%c%c%c\n",
 				 fmt.fmt.pix.pixelformat & 0xFF, 
 				 (fmt.fmt.pix.pixelformat >> 8) & 0xFF,
 				 (fmt.fmt.pix.pixelformat >> 16) & 0xFF, 
 				 (fmt.fmt.pix.pixelformat >> 24) & 0xFF);
-		 printf("pix.width:\t\t%d\n",fmt.fmt.pix.width);
-		 printf("pix.height:\t\t%d\n",fmt.fmt.pix.height);
-		 printf("pix.field:\t\t%d\n",fmt.fmt.pix.field);
+		**/
+		printf("pix.width:\t\t%d\n",fmt.fmt.pix.width);
+		printf("pix.height:\t\t%d\n",fmt.fmt.pix.height);
+		//printf("pix.field:\t\t%d\n",fmt.fmt.pix.field);
 	}
 	/* Buggy driver paranoia. */
 	min = fmt.fmt.pix.width * 2;
@@ -470,22 +628,16 @@ static void open_device(void) {
 	}
 }
 
-static void savejpg(void)
-{
-	int tm3 = getCurTime();
-	Mat mat_t(height, width, CV_8UC2, (unsigned char*)buffers[0].start);
-	Mat bgrImg_t(height, width, CV_8UC3, covBuf);
-	cvtColor(mat_t, bgrImg_t, CV_YUV2BGR_YUYV);
-	int tm4 = getCurTime();
-	imwrite(save_name, bgrImg_t);
-	printf("save jpg use time %ums\r\n", tm4-tm3);
-}
 
 int main(int argc, char* argv[])
 {
 	int res;
 	dev_name = "/dev/video0";
-	while((res = getopt(argc, argv, "w:i:d:muh")) != -1)
+
+	file_name = "save.jpg";
+	int listenfd;
+	
+	while((res = getopt(argc, argv, "w:i:d:t:muh")) != -1)
 	{
 		switch(res)
 		{
@@ -496,7 +648,7 @@ int main(int argc, char* argv[])
 				io = IO_METHOD_USERPTR;
 			break;
 			case 'i':
-				save_name = optarg;
+				file_name = optarg;
 			break;
 			case 'd':
 				dev_name = optarg;
@@ -505,39 +657,28 @@ int main(int argc, char* argv[])
 				char *tokenPtr;
 				tokenPtr = strtok(optarg, "*");
 				width = atoi(tokenPtr);
-				printf("width:%s\n",tokenPtr);
+				//printf("token:%s\n",tokenPtr);
 				tokenPtr = strtok(NULL, "*");
-				printf("height:%s\n",tokenPtr);
+				//printf("token:%s\n",tokenPtr);
 				height = atoi(tokenPtr);
-				/***
-				width = atoi(optarg);
-				if(width == 1920)
-					height = 1080;
-				else if(width >= 2048)
-				{
-					width = 2592;
-					height = 1944;
-				}
-				else
-				{
-					width = 1280;
-					height = 720;
-				}
-				***/
-			break;	
+			break;
+			case 't':
+				n_pics = atoi(optarg);
+			break;
 			case 'h':
 				std::cout << "[Usage]: " << argv[0] << " [-h]\n"
 					<< "   [-p proto_file] [-m model_file] [-i image_file]\n";
 			return 0;
 			default:
 			break;
-        }
-    }
+		}
+	}
+
 	open_device();
 	init_device();
 	start_capturing();
 	mainloop();
-	savejpg();
+	//savejpg();
 	stop_capturing();
 	uninit_device();
 	close_device();
