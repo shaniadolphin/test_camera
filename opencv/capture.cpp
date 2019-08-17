@@ -53,8 +53,10 @@ static unsigned int width = 1920;
 static unsigned int height = 1440; 
 FILE *fp;
 const char* dev_name = nullptr;
+int dev_num = 0;
 const char* file_name = nullptr;
- 
+static unsigned int n_pics = 1;
+
 class V4L2Capture {
 public:
     V4L2Capture(char *devName, int width, int height);
@@ -92,7 +94,7 @@ V4L2Capture::V4L2Capture(char *devName, int width, int height) {
     this->devName = devName;
     this->fd_cam = -1;
     this->buffers = NULL;
-    this->n_buffers = 0;
+    this->n_buffers = 2;//0;
     this->frameIndex = -1;
     this->capW=width;
     this->capH=height;
@@ -172,7 +174,7 @@ int V4L2Capture::initDevice() {
     cam_format.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
     cam_format.fmt.pix.width = capW;
     cam_format.fmt.pix.height = capH;
-    cam_format.fmt.pix.pixelformat = V4L2_PIX_FMT_MJPEG;		//要和摄像头支持的类型对应
+    cam_format.fmt.pix.pixelformat = V4L2_PIX_FMT_MJPEG;//V4L2_PIX_FMT_YUYV;//V4L2_PIX_FMT_MJPEG;		//要和摄像头支持的类型对应
     cam_format.fmt.pix.field = V4L2_FIELD_INTERLACED;
     ret = ioctl(fd_cam, VIDIOC_S_FMT, &cam_format);
     if (ret < 0) {
@@ -187,6 +189,7 @@ int V4L2Capture::initDevice() {
     printf("Current data format information:\n\twidth:%d\n\theight:%d\n",
             cam_format.fmt.pix.width, cam_format.fmt.pix.height);
     ret = initBuffers();
+	printf("initBuffers\r\n");
     if (ret < 0) {
         perror("Buffers init error");
         //exit(-1);
@@ -496,21 +499,23 @@ void wave(const cv::Mat &image, cv::Mat &result)
 void VideoPlayer() {
     unsigned char *yuv422frame = NULL;
     unsigned long yuvframeSize = 0;
- 
+	static unsigned char covBuf[2592*1944*3];
     string videoDev = dev_name;
     V4L2Capture *vcap = new V4L2Capture(const_cast<char*>(videoDev.c_str()), width, height);
     vcap->openDevice();
     vcap->initDevice();
     vcap->startCapture();
  
-    cvNamedWindow("Capture",CV_WINDOW_AUTOSIZE);
+    //cvNamedWindow("Capture",CV_WINDOW_AUTOSIZE);
     IplImage* img;
     CvMat cvmat;
     double t;
     clock_t start, end;
     double number=0;
     int fps=0;
+	int total = n_pics;
     while(1){
+
         start=clock();
         t = (double)cvGetTickCount();
         vcap->getFrame((void **) &yuv422frame, (size_t *)&yuvframeSize);
@@ -522,14 +527,22 @@ void VideoPlayer() {
         }
         
         cv::Mat g_srcImage = cv::cvarrToMat(img,true);
-        //cvShowImage("Capture",img);
+        
         cvReleaseImage(&img);
         vcap->backFrame();
 
-
-        if((cvWaitKey(1)&255) == 27){
-            exit(0);
-        }
+		
+		if(total)
+		{
+			total--;
+		}
+		else
+		{
+			break;
+		}
+        //if((cvWaitKey(1)&255) == 27){
+        //    exit(0);
+        //}
 
         wave(g_srcImage, g_srcImage);
 #if 0
@@ -560,11 +573,50 @@ void VideoPlayer() {
  
 }
 
+int test()
+{
+    //打开摄像头
+    VideoCapture capture0(0);  
+
+    VideoWriter outputVideo;
+    //获取当前摄像头的视频信息
+    cv::Size S = cv::Size((int)capture0.get(CV_CAP_PROP_FRAME_WIDTH),
+                          (int)capture0.get(CV_CAP_PROP_FRAME_HEIGHT));
+    //打开视频路劲，设置基本信息 open函数中你参数跟上面给出的VideoWriter函数是一样的
+    outputVideo.open(outputVideoPath, -1, 30.0, S, true);
+    //CV_FOURCC('P','I','M','1')
+    if (!outputVideo.isOpened()) {
+        cout << "fail to open!" << endl;
+        return -1;
+    }
+
+    cv::Mat frameImage;
+    int count = 0;
+
+    while(true) {
+        //读取当前帧
+        capture0 >> frameImage;
+
+        if (frameImage.empty()) break;
+
+        ++count;
+        //输出当前帧
+        cv::imshow("output", frameImage);
+        //保存当前帧
+        outputVideo << frameImage;
+
+        if (char(waitKey(1)) == 'q') break;
+    }
+
+    std::cout << "TotalFrame: " << count << std::endl;
+}
+
 int main(int argc, char* argv[]) {
 	int res;
+	int pos1;
 	dev_name = "/dev/video0";
 	file_name = "save.jpg";
-	while((res = getopt(argc, argv, "w:i:d:h")) != -1)
+	while((res = getopt(argc, argv, "w:i:d:t:h")) != -1)
 	{
 		switch(res)
 		{
@@ -582,10 +634,11 @@ int main(int argc, char* argv[]) {
 				tokenPtr = strtok(NULL, "*");
 				printf("height:%s\n",tokenPtr);
 				height = atoi(tokenPtr);
-			break;	
+			break;
+			case 't':
+				n_pics = atoi(optarg);
 			case 'h':
-				std::cout << "[Usage]: " << argv[0] << " [-h]\n"
-					<< "   [-d /dev/video0] [-w 1920*1440] [-i image_file.jpg]\n";
+				std::cout << "[Usage]: " << argv[0] << " [-h]\n" << "   [-d /dev/video0] [-w 1920*1440] [-i image_file.jpg]\n";
 			return 0;
 			default:
 			break;

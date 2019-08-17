@@ -57,8 +57,17 @@ public:
 		t1 = dot(cross_e_d2_x, cross_e_d2_y, cross_e_d2_z, cross_d1_d2_x, cross_d1_d2_y, cross_d1_d2_z);
 		t2 = dot(cross_e_d1_x, cross_e_d1_y, cross_e_d1_z, cross_d1_d2_x, cross_d1_d2_y, cross_d1_d2_z);
 		double dd = norm(cross_d1_d2_x, cross_d1_d2_y, cross_d1_d2_z);
+		
+		cout << "t1 = "<< endl << t1 << endl;
+		cout << "t2 = "<< endl << t2 << endl;
+		cout << "dd = "<< endl << dd << endl;
+		
 		t1 /= dd*dd;
 		t2 /= dd*dd;
+		
+		cout << "t1 = "<< endl << t1 << endl;
+		cout << "t2 = "<< endl << t2 << endl;
+		
 		//得到最近的位置
 		PonA_x = (a1_x + (a2_x - a1_x)*t1);
 		PonA_y = (a1_y + (a2_y - a1_y)*t1);

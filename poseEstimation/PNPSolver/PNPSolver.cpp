@@ -82,6 +82,9 @@ int PNPSolver::Solve(METHOD method)
 	double rm[9];
 	RoteM = cv::Mat(3, 3, CV_64FC1, rm);
 	Rodrigues(rvec, RoteM);
+	cout << "rvec = "<< endl << rvec << endl;
+	cout << "tvec = "<< endl << tvec << endl;
+	cout << "RoteM = "<< endl << RoteM << endl;
 	double r11 = RoteM.ptr<double>(0)[0];
 	double r12 = RoteM.ptr<double>(0)[1];
 	double r13 = RoteM.ptr<double>(0)[2];
@@ -92,19 +95,20 @@ int PNPSolver::Solve(METHOD method)
 	double r32 = RoteM.ptr<double>(2)[1];
 	double r33 = RoteM.ptr<double>(2)[2];
 	TransM = tvec;
+	
 
 	//计算出相机坐标系的三轴旋转欧拉角，旋转后可以转出世界坐标系。
 	//旋转顺序为z、y、x
 	double thetaz = atan2(r21, r11) / CV_PI * 180;
 	double thetay = atan2(-1 * r31, sqrt(r32*r32 + r33*r33)) / CV_PI * 180;
 	double thetax = atan2(r32, r33) / CV_PI * 180;
-
+	
 	//相机系到世界系的三轴旋转欧拉角，相机坐标系照此旋转后可以与世界坐标系完全平行。
 	//旋转顺序为z、y、x
 	Theta_C2W.z = thetaz;
 	Theta_C2W.y = thetay;
 	Theta_C2W.x = thetax;
-
+	printf("Theta_C2W:%0.4f,%0.4f,%0.4f\r\n",Theta_C2W.x, Theta_C2W.y, Theta_C2W.z);
 	//计算出世界系到相机系的三轴旋转欧拉角，世界系照此旋转后可以转出相机坐标系。
 	//旋转顺序为x、y、z
 	Theta_W2C.x = -1 * thetax;
@@ -139,6 +143,7 @@ int PNPSolver::Solve(METHOD method)
 	Position_OcInW.x = x*-1;
 	Position_OcInW.y = y*-1;
 	Position_OcInW.z = z*-1;
+	printf("Position_OcInW:%0.4f,%0.4f,%0.4f\r\n",Position_OcInW.x, Position_OcInW.y, Position_OcInW.z);
 	return 0;
 }
 

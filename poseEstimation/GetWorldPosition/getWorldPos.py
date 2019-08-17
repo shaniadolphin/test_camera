@@ -38,10 +38,8 @@ class PNPSolver():
         self.f = 0
 
     def rotationVectorToEulerAngles(self, rvecs, anglestype):
-        #assert(self.isRotationMatrix(rvecs))
         R = np.zeros((3, 3), dtype=np.float64)
         cv2.Rodrigues(rvecs, R)
-        #print('R = ', R)
         sy = math.sqrt(R[2,1] * R[2,1] +  R[2,2] * R[2,2])
         singular = sy < 1e-6
         if  not singular:
@@ -103,12 +101,12 @@ class PNPSolver():
         x, y = self.CodeRotateByZ(x, y, -1 * thetaz)
         x, z = self.CodeRotateByY(x, z, -1 * thetay)
         y, z = self.CodeRotateByX(y, z, -1 * thetax)
-        self.Theta_W2C = (-1*thetax, -1*thetay,-1*thetaz)
+        self.Theta_W2C = ([-1*thetax, -1*thetay,-1*thetaz])
         self.Position_OcInWx = x*(-1)
         self.Position_OcInWy = y*(-1)
         self.Position_OcInWz = z*(-1)
-        self.Position_OcInW = [self.Position_OcInWx, self.Position_OcInWy, self.Position_OcInWz]
-        print('Position_OcInW:',self.Position_OcInW)
+        self.Position_OcInW = np.array([self.Position_OcInWx, self.Position_OcInWy, self.Position_OcInWz])
+        print('Position_OcInW:', self.Position_OcInW)
 
     def WordFrame2ImageFrame(self, WorldPoints):
         pro_points, jacobian = cv2.projectPoints(WorldPoints, self.rvecs, self.tvecs, self.cameraMatrix, self.distCoefs)
@@ -122,7 +120,7 @@ class PNPSolver():
         zc = (self.f[0]+self.f[1])/2
         xc = (pixPoints[0] - u0) * self.f[0] / fx  #f=fx*传感器尺寸/分辨率
         yc = (pixPoints[1] - v0) * self.f[1] / fy
-        point = (xc,yc,zc)
+        point = np.array([xc,yc,zc])
         return point
 
     def getudistmap(self, filename):
@@ -166,26 +164,15 @@ class PNPSolver():
             print('Kt = \n', self.cameraMatrix)
             #print('newcameramtx = \n', newcameramtx)
             print('Dt = \n', self.distCoefs)
-            #self.f = [self.cameraMatrix[0][0]*(size_w/imageWidth), self.cameraMatrix[1][1]*(size_h/imageHeight)]
-            self.f = [350, 350]
+            self.f = [self.cameraMatrix[0][0]*(size_w/imageWidth), self.cameraMatrix[1][1]*(size_h/imageHeight)]
+            #self.f = [350, 350]
             print('f = \n', self.f)
             #print(map1,'\n',map2.T)
             return
 
 class GetDistanceOf2linesIn3D():
     def __init__(self):
-        a1_x = 0
-        a1_y = 0
-        a1_z = 0
-        a2_x = 0
-        a2_y = 0
-        a2_z = 0
-        b1_x = 0
-        b1_y = 0
-        b1_z = 0
-        b2_x = 0
-        b2_y = 0
-        b2_z = 0
+        print('GetDistanceOf2linesIn3D class')
 
     def dot(self, ax, ay, az, bx, by, bz):
         result = ax*bx + ay*by + az*bz
@@ -211,25 +198,11 @@ class GetDistanceOf2linesIn3D():
 
 
     def SetLineA(self, A1x, A1y, A1z, A2x, A2y, A2z):
-        self.a1_x = A1x
-        self.a1_y = A1y
-        self.a1_z = A1z
-        self.a1 = np.array([A1x, A1y, A1z])
-
-        self.a2_x = A2x
-        self.a2_y = A2y
-        self.a2_z = A2z     
+        self.a1 = np.array([A1x, A1y, A1z]) 
         self.a2 = np.array([A2x, A2y, A2z])
 
     def SetLineB(self, B1x, B1y, B1z, B2x, B2y, B2z):
-        self.b1_x = B1x
-        self.b1_y = B1y
-        self.b1_z = B1z
-        self.b1 = np.array([B1x, B1y, B1z])
-
-        self.b2_x = B2x
-        self.b2_y = B2y
-        self.b2_z = B2z       
+        self.b1 = np.array([B1x, B1y, B1z])    
         self.b2 = np.array([B2x, B2y, B2z])
 
     def GetDistance(self):
@@ -251,12 +224,6 @@ class GetDistanceOf2linesIn3D():
         self.PonA = self.a1 + (self.a2 - self.a1) * t1
         self.PonB = self.b1 + (self.b2 - self.b1) * t2
 
-        self.PonA_x = self.a1_x + (self.a2_x - self.a1_x)*t1
-        self.PonA_y = self.a1_y + (self.a2_y - self.a1_y)*t1
-        self.PonA_z = self.a1_z + (self.a2_z - self.a1_z)*t1
-        self.PonB_x = self.b1_x + (self.b2_x - self.b1_x)*t2
-        self.PonB_y = self.b1_y + (self.b2_y - self.b1_y)*t2
-        self.PonB_z = self.b1_z + (self.b2_z - self.b1_z)*t2
         self.distance = self.norm2(self.PonB - self.PonA)
         print('distance=', self.distance)
         return self.distance
@@ -272,34 +239,58 @@ if __name__ == "__main__":
     calibrationfile = args.file
 
     p4psolver1 = PNPSolver()
+    '''
     P11 = np.array([0, 0, 0])
     P12 = np.array([0, 200, 0])
     P13 = np.array([150, 0, 0])
     P14 = np.array([150, 200, 0])
-    p4psolver1.Points3D[0] = np.array([P11,P12,P13,P14])
-    print(p4psolver1.Points3D)
     p11 = np.array([2985, 1688])
     p12 = np.array([5081, 1690])
     p13 = np.array([2997, 2797])
     p14 = np.array([5544, 2757])
+    '''
+    P11 = np.array([0, 0, 4])
+    P12 = np.array([0, 300, 4])
+    P13 = np.array([210, 0, 4])
+    P14 = np.array([210, 300, 4])    
+    p11 = np.array([1765, 725])
+    p12 = np.array([3068, 1254])
+    p13 = np.array([1249, 1430])
+    p14 = np.array([2648, 2072]) 
+
+    p4psolver1.Points3D[0] = np.array([P11,P12,P13,P14])
     p4psolver1.Points2D[0] = np.array([p11,p12,p13,p14])
-    p4psolver1.point2find = np.array([4149, 671])
-    print(p4psolver1.Points2D)
+    #p4psolver1.point2find = np.array([4149, 671])
+    #p4psolver1.point2find = np.array([675, 835])
+    p4psolver1.point2find = np.array([691, 336])
     p4psolver1.getudistmap(calibrationfile)
     p4psolver1.solver()
 
     p4psolver2 = PNPSolver()
+    '''
     P21 = np.array([0, 0, 0])
     P22 = np.array([0, 200, 0])
     P23 = np.array([150, 0, 0])
     P24 = np.array([150, 200, 0])
-    p4psolver2.Points3D[0] = np.array([P21,P22,P23,P24])
     p21 = np.array([3062, 3073])
     p22 = np.array([3809, 3089])
     p23 = np.array([3035, 3208])
     p24 = np.array([3838, 3217])
+    '''
+    P21 = np.array([0, 0, 4])
+    P22 = np.array([0, 300, 4])
+    P23 = np.array([210, 0, 4])
+    P24 = np.array([210, 300, 4])  
+    p21 = np.array([1307, 790])
+    p22 = np.array([2555, 797])
+    p23 = np.array([1226, 1459])
+    p24 = np.array([2620, 1470])
+
+    p4psolver2.Points3D[0] = np.array([P21,P22,P23,P24])
     p4psolver2.Points2D[0] = np.array([p21,p22,p23,p24])
-    p4psolver2.point2find = np.array([3439, 2691])
+    #p4psolver2.point2find = np.array([3439, 2691])
+    #p4psolver2.point2find = np.array([712, 1016])
+    p4psolver2.point2find = np.array([453, 655])
     p4psolver2.getudistmap(calibrationfile)
     p4psolver2.solver()
 
@@ -343,3 +334,8 @@ if __name__ == "__main__":
     pt = (g.PonA + g.PonB)/2
 
     print(pt)
+
+
+    A = np.array([241.64926392,-78.7377477,166.08307887])
+    B = np.array([141.010851,-146.64449841,167.28164652])
+    print(math.sqrt(np.dot(A-B,A-B)))
