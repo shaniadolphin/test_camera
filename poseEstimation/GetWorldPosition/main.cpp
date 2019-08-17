@@ -61,6 +61,7 @@ cv::Point3f GetPointInWorld(cv::Point2f pointInImage1, PNPSolver& p4psolver1, cv
 	g.SetLineB(b1.x, b1.y, b1.z, b2.x, b2.y, b2.z);//输入直线B上的两个点坐标
 	g.GetDistance();//计算距离
 	double d = g.distance;//获得距离
+	cout << "g.distance = " << d << endl;
 	//点PonA与PonB分别为直线A、B上最接近的点，他们的中点就是P的坐标
 	double x = (g.PonA_x + g.PonB_x) / 2;
 	double y = (g.PonA_y + g.PonB_y) / 2;
