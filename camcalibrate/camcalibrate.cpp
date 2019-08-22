@@ -31,7 +31,7 @@ g++ -g -Wall -Wl,-rpath=./lib -I/usr/include/ -L./lib   -c -o calibrate_fisheye.
 //#include "nvram/libnvram.h"
 //#include "NvRAMUtils/NvRAMUtils.h"
 //#include "file_op/libfile_op.h"
-#include "targetver.h"
+//#include "targetver.h"
 
 using namespace cv;
 using namespace std;
@@ -40,6 +40,7 @@ vector<cv::String> file_vec;
 
 string sub_path = "calib/";
 
+//#define USE_TBB
 
 void getFiles(string src_path)
 {
@@ -399,6 +400,100 @@ void estimateNewCameraMatrix(InputArray K, InputArray D, const Size &image_size,
 				0,        0,       1)).convertTo(P, P.empty() ? K.type() : P.type());
 }
 
+static void CodeRotateByZ(double x, double y, double thetaz, double& outx, double& outy)
+{
+	double x1 = x;//将变量拷贝一次，保证&x == &outx这种情况下也能计算正确
+	double y1 = y;
+	double rz = thetaz;// * CV_PI / 180;
+	outx = cos(rz) * x1 - sin(rz) * y1;
+	outy = sin(rz) * x1 + cos(rz) * y1;
+}
+//将空间点绕Y轴旋转
+//输入参数 x z为空间点原始x z坐标
+//thetay为空间点绕Y轴旋转多少度，角度制范围在-180到180
+//outx outz为旋转后的结果坐标
+static void CodeRotateByY(double x, double z, double thetay, double& outx, double& outz)
+{
+	double x1 = x;
+	double z1 = z;
+	double ry = thetay;// * CV_PI / 180;
+	outx = cos(ry) * x1 + sin(ry) * z1;
+	outz = cos(ry) * z1 - sin(ry) * x1;
+}
+//将空间点绕X轴旋转
+//输入参数 y z为空间点原始y z坐标
+//thetax为空间点绕X轴旋转多少度，角度制，范围在-180到180
+//outy outz为旋转后的结果坐标
+static void CodeRotateByX(double y, double z, double thetax, double& outy, double& outz)
+{
+	double y1 = y;//将变量拷贝一次，保证&y == &y这种情况下也能计算正确
+	double z1 = z;
+	double rx = thetax;// * CV_PI / 180;
+	outy = cos(rx) * y1 - sin(rx) * z1;
+	outz = cos(rx) * z1 + sin(rx) * y1;
+}
+
+void getOcInWorld(InputArray rV, InputArray tV, vector<Point3f> &worldPoints)
+{
+	Mat RoteM, TransM;
+	Mat r, t;
+	rV.getMat().convertTo(r, CV_64F);
+	tV.getMat().convertTo(t, CV_64F);
+	double rm[9];
+	RoteM = cv::Mat(3, 3, CV_64FC1, rm);
+	Rodrigues(r, RoteM);
+	//cout << "rvec = "<< r << endl;
+	//cout << "tvec = "<< t << endl;
+	//cout << "RoteM = "<< endl << RoteM << endl;
+	double r11 = RoteM.ptr<double>(0)[0];
+	double r12 = RoteM.ptr<double>(0)[1];
+	double r13 = RoteM.ptr<double>(0)[2];
+	double r21 = RoteM.ptr<double>(1)[0];
+	double r22 = RoteM.ptr<double>(1)[1];
+	double r23 = RoteM.ptr<double>(1)[2];
+	double r31 = RoteM.ptr<double>(2)[0];
+	double r32 = RoteM.ptr<double>(2)[1];
+	double r33 = RoteM.ptr<double>(2)[2];
+	TransM = t;	
+	//计算出相机坐标系的三轴旋转欧拉角，旋转后可以转出世界坐标系。
+	//旋转顺序为z、y、x
+	double thetaz = atan2(r21, r11);// / CV_PI * 180;
+	double thetay = atan2(-1 * r31, sqrt(r32*r32 + r33*r33));// / CV_PI * 180;
+	double thetax = atan2(r32, r33);// / CV_PI * 180;	
+
+	Point3f Theta_W2C;//世界系到相机系的三轴旋转欧拉角, 旋转后可以与相机坐标系完全平行
+	Point3f Theta_C2W;//相机系到世界系的三轴旋转欧拉角, 旋转后可以与世界坐标系完全平行
+	Point3f Position_OwInC;//相机坐标系中，世界坐标系原点Ow的坐标
+	Point3f Position_OcInW;//世界坐标系中，相机坐标系原点Oc的坐标
+
+	Theta_C2W.z = thetaz;
+	Theta_C2W.y = thetay;
+	Theta_C2W.x = thetax;
+	//printf("Theta_C2W:%0.4f,%0.4f,%0.4f\r\n",Theta_C2W.x, Theta_C2W.y, Theta_C2W.z);
+	Theta_W2C.x = -1 * thetax;
+	Theta_W2C.y = -1 * thetay;
+	Theta_W2C.z = -1 * thetaz;	
+
+	double tx = t.ptr<double>(0)[0];
+	double ty = t.ptr<double>(1)[0];
+	double tz = t.ptr<double>(2)[0];
+	//printf("tx:%0.4f,%0.4f,%0.4f\r\n",tx, ty, tz);
+	double x = tx, y = ty, z = tz;
+	Position_OwInC.x = x;
+	Position_OwInC.y = y;
+	Position_OwInC.z = z;
+
+	CodeRotateByZ(x, y, -1 * thetaz, x, y);
+	CodeRotateByY(x, z, -1 * thetay, x, z);
+	CodeRotateByX(y, z, -1 * thetax, y, z);	
+
+	Position_OcInW.x = x*-1;
+	Position_OcInW.y = y*-1;
+	Position_OcInW.z = z;//z*-1;	
+	worldPoints.push_back(Position_OcInW);
+	//printf("Position_OcInW:%0.4f,%0.4f,%0.4f\r\n",Position_OcInW.x, Position_OcInW.y, Position_OcInW.z);
+}
+
 void cameraToWorld(InputArray cameraMatrix, InputArray rV, InputArray tV, vector<Point2f> imgPoints, vector<Point3f> &worldPoints)
 {
 	Mat invK64, invK;
@@ -412,14 +507,18 @@ void cameraToWorld(InputArray cameraMatrix, InputArray rV, InputArray tV, vector
 	//计算 invR * T
 	Mat invR = rMat.inv();
 	//cout << "invR\n" << invR << endl;
-
+	//cout << "t\n" << t << t.t() << endl;
 	Mat transPlaneToCam;
-	transPlaneToCam = invR * t.t();
+	if(t.size() == Size(1, 3)){
+		transPlaneToCam = invR * t;//t.t();
+	}
+	else if(t.size() == Size(3, 1)){
+		transPlaneToCam = invR * t.t();
+	}
+	else{
+		return;
+	}
 	//cout << "transPlaneToCam\n" << transPlaneToCam << endl;
-	//Mat opoints = imgPoints.getMat();
-	//int npoints = opoints.checkVector(2);
-	//int depth = opoints.depth();
-	//CvMat c_objectPoints = cvMat(opoints);
 
 	int npoints = (int)imgPoints.size();
 	//cout << "npoints\n" << npoints << endl;
@@ -431,17 +530,21 @@ void cameraToWorld(InputArray cameraMatrix, InputArray rV, InputArray tV, vector
 		coords.at<float>(2, 0) = 1.0f;
 		//[x,y,z] = invK * [u,v,1]
 		Mat worldPtCam = invK * coords;
+		//cout << "worldPtCam:" << worldPtCam << endl;
 		//[x,y,1] * invR
 		Mat worldPtPlane = invR * worldPtCam;
+		//cout << "worldPtPlane:" << worldPtPlane << endl;
 		//zc 
 		float scale = transPlaneToCam.at<float>(2) / worldPtPlane.at<float>(2);
-		//cout << "scale\n" << scale << endl;
+		//cout << "scale:" << scale << endl;
 		Mat scale_worldPtPlane(3, 1, CV_32F);
 		//scale_worldPtPlane.at<float>(0, 0) = worldPtPlane.at<float>(0, 0) * scale;
 		//zc * [x,y,1] * invR
 		scale_worldPtPlane = scale * worldPtPlane;
+		//cout << "scale_worldPtPlane:" << scale_worldPtPlane << endl;
 		//[X,Y,Z]=zc*[x,y,1]*invR - invR*T
 		Mat worldPtPlaneReproject = scale_worldPtPlane - transPlaneToCam;
+		//cout << "worldPtPlaneReproject:" << worldPtPlaneReproject << endl;
 		pt.x = worldPtPlaneReproject.at<float>(0);
 		pt.y = worldPtPlaneReproject.at<float>(1);
 		//pt.z = worldPtPlaneReproject.at<float>(2);
@@ -499,7 +602,7 @@ int fisheye_calibrate_process(string src_path)
 		cv::Mat image = imread(file_vec[i]);
 		Mat imageGray;
 		cvtColor(image, imageGray, CV_RGB2GRAY);
-		bool patternfound = findChessboardCorners(image, board_size, corners, CALIB_CB_ADAPTIVE_THRESH + CALIB_CB_NORMALIZE_IMAGE + CALIB_CB_FAST_CHECK);
+		bool patternfound = findChessboardCorners(image, board_size, corners, 0);//CALIB_CB_ADAPTIVE_THRESH + CALIB_CB_NORMALIZE_IMAGE + CALIB_CB_FAST_CHECK);
 		if (!patternfound)
 		{
 			cout << "找不到角点" << file_vec[i] << "不正确！" << endl;
@@ -580,10 +683,10 @@ int fisheye_calibrate_process(string src_path)
 			{
 				/* 假设定标板放在世界坐标系中z=0的平面上 */
 				Point3f tempPoint;
-				//tempPoint.x = (i-board_size.width/2)*square_size.width;//当为实际格子尺寸时表示平移多少距离
-				//tempPoint.y = ((float)(2.0f*j-board_size.height)/2.0f)*square_size.height;
-				tempPoint.x = i;//*square_size.height;//当为1个单位时，表示平移n个格子，-board_size.width/2
-				tempPoint.y = j;//*square_size.width;
+				tempPoint.x = (2*i-board_size.width+1)*square_size.width/2;//(i-board_size.width/2)*square_size.width;//当为实际格子尺寸时表示平移多少距离
+				tempPoint.y = j*square_size.width;//((float)(2.0f*j-board_size.height)/2.0f)*square_size.height;
+				//tempPoint.x = i;//*square_size.height;//当为1个单位时，表示平移n个格子，-board_size.width/2
+				//tempPoint.y = j;//*square_size.width;
 				tempPoint.z = 0;
 
 				tempPointSet.push_back(tempPoint);
@@ -591,7 +694,7 @@ int fisheye_calibrate_process(string src_path)
 		}
 		object_Points.push_back(tempPointSet);
 	}
-	cout << "object_Points:"<< object_Points[0] << endl;
+	//cout << "object_Points:"<< object_Points[0] << endl;
 	#if 0
 	vector<Point2f> imagePointSet;
 	for (int j = 0; j<board_size.height; j++)
@@ -721,20 +824,18 @@ int fisheye_calibrate_process(string src_path)
 	CvMat *pR_matrix = cvCreateMat(3,3,CV_64FC1);
 	CvMat *pnew_vec = cvCreateMat(1,3,CV_64FC1);
 	//CvMat *pD_mat = cvCreateMat(3,3,CV_64FC1);
-	/************************************************************************
-	保存标定结果
-	*************************************************************************/
-	cout << "保存标定结果......" << endl;
-	fout << "dim,"<< width << ","<< height << "\n";
-	fout << "cameraMatrix,";
-	fout << intrinsic_matrix(0, 0) << "," << intrinsic_matrix(1, 1) << "," << intrinsic_matrix(0, 2) << "," << intrinsic_matrix(1, 2) <<  "\n";
-	fout << "distCoefs,";
-	fout << distortion_coeffs(0) << "," << distortion_coeffs(1) << "," << distortion_coeffs(2) << "," << distortion_coeffs(3) << endl;
-	
+
 	Mat rotation_matrix = Mat(3, 3, CV_32FC1, Scalar::all(0)); /* 保存每幅图像的旋转矩阵 */
 	Vec3f eulerAngles;
 	for (unsigned int i = 0; i<image_Seq.size(); i++)
 	{
+		string imageSaveName, imageSaveName1, imageSaveName2;
+		std::stringstream StrStm;
+		StrStm << src_path;
+		StrStm << sub_path;
+		StrStm >> imageSaveName;
+		int pos1 = filenames[i].find_last_of('/');
+		string name2 = filenames[i].substr(pos1 + 1);
 	#if 1	//两种求欧拉角的方法，1：使用cvRodrigues2
 		r_vec[0]=(double)(rotation_vectors[i](0));
 		r_vec[1]=(double)(rotation_vectors[i](1));
@@ -753,7 +854,7 @@ int fisheye_calibrate_process(string src_path)
 		//cvMat转Mat
 		Mat rotation_matrix_tmp(pR_matrix->rows, pR_matrix->cols, pR_matrix->type, pR_matrix->data.fl);
 		eulerAngles = rotationMatrixToEulerAngles(rotation_matrix_tmp, 1);
-		cout << "图" << filenames[i] << "的欧拉角：" << endl;
+		cout << "图" << name2 << "的欧拉角：" << endl;
 		cout << eulerAngles << endl;
 		
 		//rotation_matrix_tmp = eulerAnglesToRotationMatrix(eulerAngles);
@@ -774,7 +875,7 @@ int fisheye_calibrate_process(string src_path)
 		eulerAngles = rotationMatrixToEulerAngles(rotation_matrix, 1);
 	#endif
 
-		cout << "图" << filenames[i] << endl;
+		cout << "图" << name2 << endl;
 		cout << "原始旋转向量:" << rotation_vec_tmp << endl;
 		cout << "反算旋转向量:" << mat_tmp << endl;
 		cout << "原始平移向量:" << translation_vec_tmp << endl;
@@ -788,8 +889,12 @@ int fisheye_calibrate_process(string src_path)
 	cout << image_Seq.size() << endl;
 	filecnt = filenames.size();
 	int tim1= getCurTime();
+
+#ifdef USE_TBB
 	tbb::parallel_for(0, filecnt, [&board_size,&image_Seq,&filenames,&mapx,&mapy,&newcameramtx,&object_Points,&src_path](int i)
-	//for (unsigned int i = 0; i < filenames.size(); i++)
+#else
+	for (unsigned int i = 0; i < filenames.size(); i++)
+#endif
 	{
 		Mat t;// = image_Seq[image_count].clone();
 		cv::remap(image_Seq[i], t, mapx, mapy, INTER_LINEAR);
@@ -802,30 +907,47 @@ int fisheye_calibrate_process(string src_path)
 		string name2 = filenames[i].substr(pos1 + 1);
 		int pos2 = name2.find('.');
 		string name3 = name2.substr(0,pos2);
-		imageSaveName1 = imageSaveName + name3 + "_d.jpg";
+		string name4 = name3 +  "_d.jpg";
+		imageSaveName1 = imageSaveName + name4;
 		imwrite(imageSaveName1, t);		
-#if 1
 		Mat imagegray;
 		vector<Point2f> undistortcorners;
 		cvtColor(t, imagegray, CV_RGB2GRAY);
-		bool found = findChessboardCorners(t, board_size, undistortcorners, CALIB_CB_ADAPTIVE_THRESH + CALIB_CB_NORMALIZE_IMAGE + CALIB_CB_FAST_CHECK);
+
+		bool found = findChessboardCorners(t, board_size, undistortcorners, 0);//CALIB_CB_ADAPTIVE_THRESH + CALIB_CB_NORMALIZE_IMAGE + CALIB_CB_FAST_CHECK);
 		if (!found)
 		{
 			cout << "找不到角点" << endl;
 		}
 		else
 		{
-			//cornerSubPix(imagegray, undistortcorners, Size(5, 5), Size(-1, -1), TermCriteria(CV_TERMCRIT_EPS + CV_TERMCRIT_ITER, 30, 0.1));
-			#if 1
+			cornerSubPix(imagegray, undistortcorners, Size(5, 5), Size(-1, -1), TermCriteria(CV_TERMCRIT_EPS + CV_TERMCRIT_ITER, 30, 0.1));
 			Mat rvec1, tvec1;
+			ofstream csvout(imageSaveName + name3 +  "_calibration.csv");  /**    保存定标结果的文件     **/
 			cv::Mat1f distCoeffs = cv::Mat(1, 5, CV_32FC1, cv::Scalar::all(0)); /* 摄像机的5个畸变系数：k1,k2,p1,p2,k3 */
-			Vec3f angles;
+			Vec3f angles, angles1;
+
 			solvePnP(object_Points[i], undistortcorners, newcameramtx, distCoeffs, rvec1, tvec1);
+			#ifndef USE_TBB
+			cout << name4 <<" rvec:" << rvec1.ptr<double>(0)[0] << "," << rvec1.ptr<double>(0)[1] << "," << rvec1.ptr<double>(0)[2]  << endl;
+			cout << name4 <<" tvec:" << tvec1<< endl;
+
+			csvout << "rvec,";
+			csvout << rvec1.ptr<double>(0)[0] << "," << rvec1.ptr<double>(0)[1] << "," << rvec1.ptr<double>(0)[2] << "\n";
+			csvout << "tvec,";
+			csvout << tvec1.ptr<double>(0)[0] << "," << tvec1.ptr<double>(0)[1] << "," << tvec1.ptr<double>(0)[2] << "\n";
+
+			vector<Point3f> oInWorldPoint;
+			getOcInWorld(rvec1, tvec1, oInWorldPoint);
+
+			cout << name4 << "相机原点:\n" << oInWorldPoint << endl;	
+			csvout << "oInWorldPoint,";
+			csvout << oInWorldPoint[0].x << "," << oInWorldPoint[0].y << "," << oInWorldPoint[0].z << "\n";			
+			#endif
 			Mat R1;
 			Rodrigues(rvec1, R1);//从旋转向量求旋转矩阵
-			angles = rotationMatrixToEulerAngles(R1, 1);
-			cout << "图" << filenames[i] << "的计算欧拉角：" << angles << endl;
-			#endif
+			angles1 = rotationMatrixToEulerAngles(R1, 1);
+
 			angles = rotationMatrixToEulerAngles(R1, 2);	//0表示输出为弧度，1表示输出为角度，>1表示yz为0输出为弧度
 			CvMat *pRmatrix = cvCreateMat(3,3,CV_64FC1);
 			CvMat *pnewvec = cvCreateMat(1,3,CV_64FC1);
@@ -834,8 +956,18 @@ int fisheye_calibrate_process(string src_path)
 			cvRodrigues2(pRmatrix, pnewvec, 0);	//从旋转矩阵求旋转向量
 			vector<Point2f>  image_points3; 
 			Mat mat_tmp(pnewvec->rows, pnewvec->cols, pnewvec->type, pnewvec->data.fl);		//<lfx
-			vector<Point2f> tempImagePoint = undistortcorners;
+			vector<Point2f> tempImagePoint = undistortcorners;		
+			//cout << "tvec1 dims:" << tvec1.dims << tvec1.rows << tvec1.cols << endl;
+			tvec1.at<double>(0, 0) = 0.0f;
+			tvec1.at<double>(1, 0) = -100.0f;
+			tvec1.at<double>(2, 0) = 200.0f;
+			//cout << "图" << filenames[i] << " tvec1：" << tvec1 << endl;
 			projectPoints(object_Points[i], mat_tmp, tvec1, newcameramtx, distCoeffs, image_points3);
+			vector<Point3f> worldPoint;
+			//Mat worldPoint = Mat(1, tempImagePoint.size(), CV_32FC2);
+			cameraToWorld(newcameramtx, mat_tmp, tvec1, image_points3, worldPoint);
+			//cout << "计算空间点:\n" << worldPoint << endl;
+
 			Mat image_points2Mat = Mat(1, image_points3.size(), CV_32FC2);
 			
 			for (size_t i = 0; i != tempImagePoint.size(); i++)
@@ -844,14 +976,38 @@ int fisheye_calibrate_process(string src_path)
 			}
 			Mat h, im1Reg;
 			h = findHomography(undistortcorners, image_points2Mat, RANSAC);
+			csvout << "Homography[0],";
+			csvout << h.ptr<double>(0)[0] << "," << h.ptr<double>(0)[1] << "," << h.ptr<double>(0)[2] << "\n";
+			csvout << "Homography[1],";
+			csvout << h.ptr<double>(1)[0] << "," << h.ptr<double>(1)[1] << "," << h.ptr<double>(1)[2] << "\n";
+			csvout << "Homography[2],";
+			csvout << h.ptr<double>(2)[0] << "," << h.ptr<double>(2)[1] << "," << h.ptr<double>(2)[2] << endl;			
 			warpPerspective(t, t, h, t.size());
 			imageSaveName2 = imageSaveName + name3 + "_warp.jpg";
+			//mutexObj.lock(); //互斥
+			cout << name4 << "的计算欧拉角：" << angles1 <<endl;
+			//cout << h << endl;
+			//mutexObj.unlock(); //互斥
 			imwrite(imageSaveName2, t);
 		}	
-#endif
+#ifdef USE_TBB
 	});
+#else
+	}
+#endif
 	int tim2= getCurTime();
 	cout<<"Running time:"<< tim2 - tim1 << "ms" <<endl;
+	/************************************************************************
+	保存标定结果
+	*************************************************************************/
+	cout << "保存标定结果......" << endl;
+	fout << "dim,"<< width << ","<< height << "\n";
+	fout << "cameraMatrix,";
+	fout << intrinsic_matrix(0, 0) << "," << intrinsic_matrix(1, 1) << "," << intrinsic_matrix(0, 2) << "," << intrinsic_matrix(1, 2) <<  "\n";
+	fout << "distCoefs,";
+	fout << distortion_coeffs(0) << "," << distortion_coeffs(1) << "," << distortion_coeffs(2) << "," << distortion_coeffs(3) <<  "\n";
+	fout << "newcameraMatrix,";
+	fout << newcameramtx(0, 0) << "," << newcameramtx(1, 1) << "," << newcameramtx(0, 2) << "," << newcameramtx(1, 2) << endl;
 	cout << "保存结束" << endl;
 	//exit(1);
 	return 0;
@@ -936,11 +1092,12 @@ int normal_calibrate_process(string src_path)
 			{
 				/* 假设定标板放在世界坐标系中z=0的平面上 */
 				Point3f tempPoint;
-				//tempPoint.x = i*square_size.width;
-				//tempPoint.y = j*square_size.height;
-				tempPoint.x = i*square_size.height;
-				tempPoint.y = j*square_size.width;
+				tempPoint.x = (2*i-board_size.width+1)*square_size.width/2;//(i-board_size.width/2)*square_size.width;//当为实际格子尺寸时表示平移多少距离
+				tempPoint.y = j*square_size.width;//((float)(2.0f*j-board_size.height)/2.0f)*square_size.height;
+				//tempPoint.x = i;//*square_size.height;//当为1个单位时，表示平移n个格子，-board_size.width/2
+				//tempPoint.y = j;//*square_size.width;
 				tempPoint.z = 0;
+
 				tempPointSet.push_back(tempPoint);
 			}
 		}
@@ -962,7 +1119,7 @@ int normal_calibrate_process(string src_path)
 	Mat mapy = Mat(image_size, CV_32FC1);
 	Mat transformation = Mat::eye(3, 3, CV_32F);
 	Mat newcameramtx = Mat::eye(3, 3, CV_32F);
-	double balance = 0.5;
+	double balance = 1.0;
 	double total_err = 0.0;                   /* 所有图像的平均误差的总和 */
 	double err = 0.0;                        /* 每幅图像的平均误差 */
 	vector<Point2f>  image_points2;             /* 保存重新计算得到的投影点 */
@@ -1102,7 +1259,7 @@ int normal_calibrate_process(string src_path)
 		cout << "第" << i + 1 << "幅图像的平移向量：" << endl;
 		cout << "原始:" << translation_vec_tmp << endl;
 		cout << "原始空间点:\n" << image_points2 << endl;
-		cout << "计算空间点:\n" << worldPoint << endl;		//object_Points[i]
+		//cout << "计算空间点:\n" << worldPoint << endl;		//object_Points[i]
 	}
 	cout << "完成保存" << endl;
 	fout << endl;
@@ -1183,7 +1340,7 @@ int main(int argc, char* argv[])
 	int method = 1;
 	//string file_path = "/data/cap/";
 	string file_path = "./cap/";
-	printf("ver = %d\n", SDK_VER);
+	//printf("ver = %d\n", SDK_VER);
 	while ((res = getopt(argc, argv, "p:t:")) != -1)
 	{
 		switch (res)
