@@ -1,0 +1,1552 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>MainWindow</class>
+ <widget class="QMainWindow" name="MainWindow">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>1280</width>
+    <height>800</height>
+   </rect>
+  </property>
+  <property name="maximumSize">
+   <size>
+    <width>1280</width>
+    <height>800</height>
+   </size>
+  </property>
+  <property name="windowTitle">
+   <string>MainWindow</string>
+  </property>
+  <widget class="QWidget" name="centralwidget">
+   <property name="maximumSize">
+    <size>
+     <width>1280</width>
+     <height>800</height>
+    </size>
+   </property>
+   <widget class="QGraphicsView" name="pic1view">
+    <property name="geometry">
+     <rect>
+      <x>0</x>
+      <y>0</y>
+      <width>640</width>
+      <height>480</height>
+     </rect>
+    </property>
+    <property name="maximumSize">
+     <size>
+      <width>640</width>
+      <height>480</height>
+     </size>
+    </property>
+   </widget>
+   <widget class="QGraphicsView" name="pic2view">
+    <property name="geometry">
+     <rect>
+      <x>640</x>
+      <y>0</y>
+      <width>640</width>
+      <height>480</height>
+     </rect>
+    </property>
+    <property name="maximumSize">
+     <size>
+      <width>640</width>
+      <height>480</height>
+     </size>
+    </property>
+   </widget>
+   <widget class="QDoubleSpinBox" name="fx">
+    <property name="geometry">
+     <rect>
+      <x>600</x>
+      <y>630</y>
+      <width>80</width>
+      <height>20</height>
+     </rect>
+    </property>
+    <property name="font">
+     <font>
+      <pointsize>10</pointsize>
+     </font>
+    </property>
+    <property name="minimum">
+     <double>-99999999999.000000000000000</double>
+    </property>
+    <property name="maximum">
+     <double>99999999999.000000000000000</double>
+    </property>
+    <property name="singleStep">
+     <double>0.100000000000000</double>
+    </property>
+   </widget>
+   <widget class="QLabel" name="labelFx">
+    <property name="geometry">
+     <rect>
+      <x>560</x>
+      <y>630</y>
+      <width>60</width>
+      <height>20</height>
+     </rect>
+    </property>
+    <property name="font">
+     <font>
+      <pointsize>10</pointsize>
+     </font>
+    </property>
+    <property name="text">
+     <string>Fx</string>
+    </property>
+   </widget>
+   <widget class="QLabel" name="labelFy">
+    <property name="geometry">
+     <rect>
+      <x>560</x>
+      <y>660</y>
+      <width>60</width>
+      <height>20</height>
+     </rect>
+    </property>
+    <property name="font">
+     <font>
+      <pointsize>10</pointsize>
+     </font>
+    </property>
+    <property name="text">
+     <string>Fy</string>
+    </property>
+   </widget>
+   <widget class="QDoubleSpinBox" name="fy">
+    <property name="geometry">
+     <rect>
+      <x>600</x>
+      <y>660</y>
+      <width>80</width>
+      <height>20</height>
+     </rect>
+    </property>
+    <property name="font">
+     <font>
+      <pointsize>10</pointsize>
+     </font>
+    </property>
+    <property name="minimum">
+     <double>-99999999999.000000000000000</double>
+    </property>
+    <property name="maximum">
+     <double>99999999999.000000000000000</double>
+    </property>
+    <property name="singleStep">
+     <double>0.100000000000000</double>
+    </property>
+   </widget>
+   <widget class="QLabel" name="labelu0">
+    <property name="geometry">
+     <rect>
+      <x>560</x>
+      <y>690</y>
+      <width>60</width>
+      <height>20</height>
+     </rect>
+    </property>
+    <property name="font">
+     <font>
+      <pointsize>10</pointsize>
+     </font>
+    </property>
+    <property name="text">
+     <string>u0</string>
+    </property>
+   </widget>
+   <widget class="QDoubleSpinBox" name="u0">
+    <property name="geometry">
+     <rect>
+      <x>600</x>
+      <y>690</y>
+      <width>80</width>
+      <height>20</height>
+     </rect>
+    </property>
+    <property name="font">
+     <font>
+      <pointsize>10</pointsize>
+     </font>
+    </property>
+    <property name="minimum">
+     <double>-99999999999.000000000000000</double>
+    </property>
+    <property name="maximum">
+     <double>99999999999.000000000000000</double>
+    </property>
+    <property name="singleStep">
+     <double>0.100000000000000</double>
+    </property>
+   </widget>
+   <widget class="QLabel" name="labelv0">
+    <property name="geometry">
+     <rect>
+      <x>560</x>
+      <y>720</y>
+      <width>60</width>
+      <height>20</height>
+     </rect>
+    </property>
+    <property name="font">
+     <font>
+      <pointsize>10</pointsize>
+     </font>
+    </property>
+    <property name="text">
+     <string>v0</string>
+    </property>
+   </widget>
+   <widget class="QDoubleSpinBox" name="v0">
+    <property name="geometry">
+     <rect>
+      <x>600</x>
+      <y>720</y>
+      <width>80</width>
+      <height>20</height>
+     </rect>
+    </property>
+    <property name="font">
+     <font>
+      <pointsize>10</pointsize>
+     </font>
+    </property>
+    <property name="minimum">
+     <double>-99999999999.000000000000000</double>
+    </property>
+    <property name="maximum">
+     <double>99999999999.000000000000000</double>
+    </property>
+    <property name="singleStep">
+     <double>0.100000000000000</double>
+    </property>
+   </widget>
+   <widget class="QRadioButton" name="radioButtonP11">
+    <property name="geometry">
+     <rect>
+      <x>10</x>
+      <y>510</y>
+      <width>60</width>
+      <height>20</height>
+     </rect>
+    </property>
+    <property name="font">
+     <font>
+      <pointsize>10</pointsize>
+     </font>
+    </property>
+    <property name="text">
+     <string>P11</string>
+    </property>
+   </widget>
+   <widget class="QDoubleSpinBox" name="P11X">
+    <property name="geometry">
+     <rect>
+      <x>60</x>
+      <y>510</y>
+      <width>80</width>
+      <height>20</height>
+     </rect>
+    </property>
+    <property name="font">
+     <font>
+      <pointsize>10</pointsize>
+     </font>
+    </property>
+    <property name="minimum">
+     <double>-99999999999.000000000000000</double>
+    </property>
+    <property name="maximum">
+     <double>99999999999.000000000000000</double>
+    </property>
+    <property name="singleStep">
+     <double>0.100000000000000</double>
+    </property>
+   </widget>
+   <widget class="QDoubleSpinBox" name="P11Y">
+    <property name="geometry">
+     <rect>
+      <x>160</x>
+      <y>510</y>
+      <width>80</width>
+      <height>20</height>
+     </rect>
+    </property>
+    <property name="font">
+     <font>
+      <pointsize>10</pointsize>
+     </font>
+    </property>
+    <property name="minimum">
+     <double>-99999999999.000000000000000</double>
+    </property>
+    <property name="maximum">
+     <double>99999999999.000000000000000</double>
+    </property>
+    <property name="singleStep">
+     <double>0.100000000000000</double>
+    </property>
+   </widget>
+   <widget class="QDoubleSpinBox" name="P12X">
+    <property name="geometry">
+     <rect>
+      <x>60</x>
+      <y>540</y>
+      <width>80</width>
+      <height>20</height>
+     </rect>
+    </property>
+    <property name="font">
+     <font>
+      <pointsize>10</pointsize>
+     </font>
+    </property>
+    <property name="minimum">
+     <double>-99999999999.000000000000000</double>
+    </property>
+    <property name="maximum">
+     <double>99999999999.000000000000000</double>
+    </property>
+    <property name="singleStep">
+     <double>0.100000000000000</double>
+    </property>
+   </widget>
+   <widget class="QDoubleSpinBox" name="P12Y">
+    <property name="geometry">
+     <rect>
+      <x>160</x>
+      <y>540</y>
+      <width>80</width>
+      <height>20</height>
+     </rect>
+    </property>
+    <property name="font">
+     <font>
+      <pointsize>10</pointsize>
+     </font>
+    </property>
+    <property name="minimum">
+     <double>-99999999999.000000000000000</double>
+    </property>
+    <property name="maximum">
+     <double>99999999999.000000000000000</double>
+    </property>
+    <property name="singleStep">
+     <double>0.100000000000000</double>
+    </property>
+   </widget>
+   <widget class="QRadioButton" name="radioButtonP12">
+    <property name="geometry">
+     <rect>
+      <x>10</x>
+      <y>540</y>
+      <width>60</width>
+      <height>20</height>
+     </rect>
+    </property>
+    <property name="font">
+     <font>
+      <pointsize>10</pointsize>
+     </font>
+    </property>
+    <property name="text">
+     <string>P12</string>
+    </property>
+   </widget>
+   <widget class="QDoubleSpinBox" name="P13X">
+    <property name="geometry">
+     <rect>
+      <x>60</x>
+      <y>570</y>
+      <width>80</width>
+      <height>20</height>
+     </rect>
+    </property>
+    <property name="font">
+     <font>
+      <pointsize>10</pointsize>
+     </font>
+    </property>
+    <property name="minimum">
+     <double>-99999999999.000000000000000</double>
+    </property>
+    <property name="maximum">
+     <double>99999999999.000000000000000</double>
+    </property>
+    <property name="singleStep">
+     <double>0.100000000000000</double>
+    </property>
+   </widget>
+   <widget class="QDoubleSpinBox" name="P13Y">
+    <property name="geometry">
+     <rect>
+      <x>160</x>
+      <y>570</y>
+      <width>80</width>
+      <height>20</height>
+     </rect>
+    </property>
+    <property name="font">
+     <font>
+      <pointsize>10</pointsize>
+     </font>
+    </property>
+    <property name="minimum">
+     <double>-99999999999.000000000000000</double>
+    </property>
+    <property name="maximum">
+     <double>99999999999.000000000000000</double>
+    </property>
+    <property name="singleStep">
+     <double>0.100000000000000</double>
+    </property>
+   </widget>
+   <widget class="QRadioButton" name="radioButtonP13">
+    <property name="geometry">
+     <rect>
+      <x>10</x>
+      <y>570</y>
+      <width>60</width>
+      <height>20</height>
+     </rect>
+    </property>
+    <property name="font">
+     <font>
+      <pointsize>10</pointsize>
+     </font>
+    </property>
+    <property name="text">
+     <string>P13</string>
+    </property>
+   </widget>
+   <widget class="QDoubleSpinBox" name="P14X">
+    <property name="geometry">
+     <rect>
+      <x>60</x>
+      <y>600</y>
+      <width>80</width>
+      <height>20</height>
+     </rect>
+    </property>
+    <property name="font">
+     <font>
+      <pointsize>10</pointsize>
+     </font>
+    </property>
+    <property name="minimum">
+     <double>-99999999999.000000000000000</double>
+    </property>
+    <property name="maximum">
+     <double>99999999999.000000000000000</double>
+    </property>
+    <property name="singleStep">
+     <double>0.100000000000000</double>
+    </property>
+   </widget>
+   <widget class="QDoubleSpinBox" name="P14Y">
+    <property name="geometry">
+     <rect>
+      <x>160</x>
+      <y>600</y>
+      <width>80</width>
+      <height>20</height>
+     </rect>
+    </property>
+    <property name="font">
+     <font>
+      <pointsize>10</pointsize>
+     </font>
+    </property>
+    <property name="minimum">
+     <double>-99999999999.000000000000000</double>
+    </property>
+    <property name="maximum">
+     <double>99999999999.000000000000000</double>
+    </property>
+    <property name="singleStep">
+     <double>0.100000000000000</double>
+    </property>
+   </widget>
+   <widget class="QRadioButton" name="radioButtonP14">
+    <property name="geometry">
+     <rect>
+      <x>10</x>
+      <y>600</y>
+      <width>60</width>
+      <height>20</height>
+     </rect>
+    </property>
+    <property name="font">
+     <font>
+      <pointsize>10</pointsize>
+     </font>
+    </property>
+    <property name="text">
+     <string>P14</string>
+    </property>
+   </widget>
+   <widget class="QDoubleSpinBox" name="P23X">
+    <property name="geometry">
+     <rect>
+      <x>60</x>
+      <y>690</y>
+      <width>80</width>
+      <height>20</height>
+     </rect>
+    </property>
+    <property name="font">
+     <font>
+      <pointsize>10</pointsize>
+     </font>
+    </property>
+    <property name="minimum">
+     <double>-99999999999.000000000000000</double>
+    </property>
+    <property name="maximum">
+     <double>99999999999.000000000000000</double>
+    </property>
+    <property name="singleStep">
+     <double>0.100000000000000</double>
+    </property>
+   </widget>
+   <widget class="QDoubleSpinBox" name="P24X">
+    <property name="geometry">
+     <rect>
+      <x>60</x>
+      <y>720</y>
+      <width>80</width>
+      <height>20</height>
+     </rect>
+    </property>
+    <property name="font">
+     <font>
+      <pointsize>10</pointsize>
+     </font>
+    </property>
+    <property name="minimum">
+     <double>-99999999999.000000000000000</double>
+    </property>
+    <property name="maximum">
+     <double>99999999999.000000000000000</double>
+    </property>
+    <property name="singleStep">
+     <double>0.100000000000000</double>
+    </property>
+   </widget>
+   <widget class="QDoubleSpinBox" name="P21X">
+    <property name="geometry">
+     <rect>
+      <x>60</x>
+      <y>630</y>
+      <width>80</width>
+      <height>20</height>
+     </rect>
+    </property>
+    <property name="font">
+     <font>
+      <pointsize>10</pointsize>
+     </font>
+    </property>
+    <property name="minimum">
+     <double>-99999999999.000000000000000</double>
+    </property>
+    <property name="maximum">
+     <double>99999999999.000000000000000</double>
+    </property>
+    <property name="singleStep">
+     <double>0.100000000000000</double>
+    </property>
+   </widget>
+   <widget class="QRadioButton" name="radioButtonP22">
+    <property name="geometry">
+     <rect>
+      <x>10</x>
+      <y>660</y>
+      <width>60</width>
+      <height>20</height>
+     </rect>
+    </property>
+    <property name="font">
+     <font>
+      <pointsize>10</pointsize>
+     </font>
+    </property>
+    <property name="text">
+     <string>P22</string>
+    </property>
+   </widget>
+   <widget class="QRadioButton" name="radioButtonP23">
+    <property name="geometry">
+     <rect>
+      <x>10</x>
+      <y>690</y>
+      <width>60</width>
+      <height>20</height>
+     </rect>
+    </property>
+    <property name="font">
+     <font>
+      <pointsize>10</pointsize>
+     </font>
+    </property>
+    <property name="text">
+     <string>P23</string>
+    </property>
+   </widget>
+   <widget class="QDoubleSpinBox" name="P21Y">
+    <property name="geometry">
+     <rect>
+      <x>160</x>
+      <y>630</y>
+      <width>80</width>
+      <height>20</height>
+     </rect>
+    </property>
+    <property name="font">
+     <font>
+      <pointsize>10</pointsize>
+     </font>
+    </property>
+    <property name="minimum">
+     <double>-99999999999.000000000000000</double>
+    </property>
+    <property name="maximum">
+     <double>99999999999.000000000000000</double>
+    </property>
+    <property name="singleStep">
+     <double>0.100000000000000</double>
+    </property>
+   </widget>
+   <widget class="QDoubleSpinBox" name="P22X">
+    <property name="geometry">
+     <rect>
+      <x>60</x>
+      <y>660</y>
+      <width>80</width>
+      <height>20</height>
+     </rect>
+    </property>
+    <property name="font">
+     <font>
+      <pointsize>10</pointsize>
+     </font>
+    </property>
+    <property name="minimum">
+     <double>-99999999999.000000000000000</double>
+    </property>
+    <property name="maximum">
+     <double>99999999999.000000000000000</double>
+    </property>
+    <property name="singleStep">
+     <double>0.100000000000000</double>
+    </property>
+   </widget>
+   <widget class="QDoubleSpinBox" name="P23Y">
+    <property name="geometry">
+     <rect>
+      <x>160</x>
+      <y>690</y>
+      <width>80</width>
+      <height>20</height>
+     </rect>
+    </property>
+    <property name="font">
+     <font>
+      <pointsize>10</pointsize>
+     </font>
+    </property>
+    <property name="minimum">
+     <double>-99999999999.000000000000000</double>
+    </property>
+    <property name="maximum">
+     <double>99999999999.000000000000000</double>
+    </property>
+    <property name="singleStep">
+     <double>0.100000000000000</double>
+    </property>
+   </widget>
+   <widget class="QRadioButton" name="radioButtonP24">
+    <property name="geometry">
+     <rect>
+      <x>10</x>
+      <y>720</y>
+      <width>60</width>
+      <height>20</height>
+     </rect>
+    </property>
+    <property name="font">
+     <font>
+      <pointsize>10</pointsize>
+     </font>
+    </property>
+    <property name="text">
+     <string>P24</string>
+    </property>
+   </widget>
+   <widget class="QDoubleSpinBox" name="P22Y">
+    <property name="geometry">
+     <rect>
+      <x>160</x>
+      <y>660</y>
+      <width>80</width>
+      <height>20</height>
+     </rect>
+    </property>
+    <property name="font">
+     <font>
+      <pointsize>10</pointsize>
+     </font>
+    </property>
+    <property name="minimum">
+     <double>-99999999999.000000000000000</double>
+    </property>
+    <property name="maximum">
+     <double>99999999999.000000000000000</double>
+    </property>
+    <property name="singleStep">
+     <double>0.100000000000000</double>
+    </property>
+   </widget>
+   <widget class="QRadioButton" name="radioButtonP21">
+    <property name="geometry">
+     <rect>
+      <x>10</x>
+      <y>630</y>
+      <width>60</width>
+      <height>20</height>
+     </rect>
+    </property>
+    <property name="font">
+     <font>
+      <pointsize>10</pointsize>
+     </font>
+    </property>
+    <property name="text">
+     <string>P21</string>
+    </property>
+   </widget>
+   <widget class="QDoubleSpinBox" name="P24Y">
+    <property name="geometry">
+     <rect>
+      <x>160</x>
+      <y>720</y>
+      <width>80</width>
+      <height>20</height>
+     </rect>
+    </property>
+    <property name="font">
+     <font>
+      <pointsize>10</pointsize>
+     </font>
+    </property>
+    <property name="minimum">
+     <double>-99999999999.000000000000000</double>
+    </property>
+    <property name="maximum">
+     <double>99999999999.000000000000000</double>
+    </property>
+    <property name="singleStep">
+     <double>0.100000000000000</double>
+    </property>
+   </widget>
+   <widget class="QRadioButton" name="radioButtonX2">
+    <property name="geometry">
+     <rect>
+      <x>560</x>
+      <y>540</y>
+      <width>60</width>
+      <height>20</height>
+     </rect>
+    </property>
+    <property name="font">
+     <font>
+      <pointsize>10</pointsize>
+     </font>
+    </property>
+    <property name="text">
+     <string>X2</string>
+    </property>
+   </widget>
+   <widget class="QRadioButton" name="radioButtonX1">
+    <property name="geometry">
+     <rect>
+      <x>560</x>
+      <y>510</y>
+      <width>60</width>
+      <height>20</height>
+     </rect>
+    </property>
+    <property name="font">
+     <font>
+      <pointsize>10</pointsize>
+     </font>
+    </property>
+    <property name="text">
+     <string>X1</string>
+    </property>
+   </widget>
+   <widget class="QPushButton" name="pushButtonClear">
+    <property name="geometry">
+     <rect>
+      <x>1170</x>
+      <y>600</y>
+      <width>80</width>
+      <height>40</height>
+     </rect>
+    </property>
+    <property name="font">
+     <font>
+      <pointsize>12</pointsize>
+     </font>
+    </property>
+    <property name="text">
+     <string>Clear</string>
+    </property>
+   </widget>
+   <widget class="QPushButton" name="pushButtonCal">
+    <property name="geometry">
+     <rect>
+      <x>1170</x>
+      <y>680</y>
+      <width>80</width>
+      <height>40</height>
+     </rect>
+    </property>
+    <property name="font">
+     <font>
+      <pointsize>12</pointsize>
+     </font>
+    </property>
+    <property name="text">
+     <string>Cal</string>
+    </property>
+   </widget>
+   <widget class="QDoubleSpinBox" name="p11X">
+    <property name="geometry">
+     <rect>
+      <x>360</x>
+      <y>510</y>
+      <width>80</width>
+      <height>20</height>
+     </rect>
+    </property>
+    <property name="font">
+     <font>
+      <pointsize>10</pointsize>
+     </font>
+    </property>
+    <property name="minimum">
+     <double>-99999999999.000000000000000</double>
+    </property>
+    <property name="maximum">
+     <double>99999999999.000000000000000</double>
+    </property>
+    <property name="singleStep">
+     <double>0.100000000000000</double>
+    </property>
+   </widget>
+   <widget class="QDoubleSpinBox" name="p13X">
+    <property name="geometry">
+     <rect>
+      <x>360</x>
+      <y>570</y>
+      <width>80</width>
+      <height>20</height>
+     </rect>
+    </property>
+    <property name="font">
+     <font>
+      <pointsize>10</pointsize>
+     </font>
+    </property>
+    <property name="minimum">
+     <double>-99999999999.000000000000000</double>
+    </property>
+    <property name="maximum">
+     <double>99999999999.000000000000000</double>
+    </property>
+    <property name="singleStep">
+     <double>0.100000000000000</double>
+    </property>
+   </widget>
+   <widget class="QDoubleSpinBox" name="p12X">
+    <property name="geometry">
+     <rect>
+      <x>360</x>
+      <y>540</y>
+      <width>80</width>
+      <height>20</height>
+     </rect>
+    </property>
+    <property name="font">
+     <font>
+      <pointsize>10</pointsize>
+     </font>
+    </property>
+    <property name="minimum">
+     <double>-99999999999.000000000000000</double>
+    </property>
+    <property name="maximum">
+     <double>99999999999.000000000000000</double>
+    </property>
+    <property name="singleStep">
+     <double>0.100000000000000</double>
+    </property>
+   </widget>
+   <widget class="QDoubleSpinBox" name="p14X">
+    <property name="geometry">
+     <rect>
+      <x>360</x>
+      <y>600</y>
+      <width>80</width>
+      <height>20</height>
+     </rect>
+    </property>
+    <property name="font">
+     <font>
+      <pointsize>10</pointsize>
+     </font>
+    </property>
+    <property name="minimum">
+     <double>-99999999999.000000000000000</double>
+    </property>
+    <property name="maximum">
+     <double>99999999999.000000000000000</double>
+    </property>
+    <property name="singleStep">
+     <double>0.100000000000000</double>
+    </property>
+   </widget>
+   <widget class="QDoubleSpinBox" name="p11Y">
+    <property name="geometry">
+     <rect>
+      <x>460</x>
+      <y>510</y>
+      <width>80</width>
+      <height>20</height>
+     </rect>
+    </property>
+    <property name="font">
+     <font>
+      <pointsize>10</pointsize>
+     </font>
+    </property>
+    <property name="minimum">
+     <double>-99999999999.000000000000000</double>
+    </property>
+    <property name="maximum">
+     <double>99999999999.000000000000000</double>
+    </property>
+    <property name="singleStep">
+     <double>0.100000000000000</double>
+    </property>
+   </widget>
+   <widget class="QDoubleSpinBox" name="p13Y">
+    <property name="geometry">
+     <rect>
+      <x>460</x>
+      <y>570</y>
+      <width>80</width>
+      <height>20</height>
+     </rect>
+    </property>
+    <property name="font">
+     <font>
+      <pointsize>10</pointsize>
+     </font>
+    </property>
+    <property name="minimum">
+     <double>-99999999999.000000000000000</double>
+    </property>
+    <property name="maximum">
+     <double>99999999999.000000000000000</double>
+    </property>
+    <property name="singleStep">
+     <double>0.100000000000000</double>
+    </property>
+   </widget>
+   <widget class="QDoubleSpinBox" name="p12Y">
+    <property name="geometry">
+     <rect>
+      <x>460</x>
+      <y>540</y>
+      <width>80</width>
+      <height>20</height>
+     </rect>
+    </property>
+    <property name="font">
+     <font>
+      <pointsize>10</pointsize>
+     </font>
+    </property>
+    <property name="minimum">
+     <double>-99999999999.000000000000000</double>
+    </property>
+    <property name="maximum">
+     <double>99999999999.000000000000000</double>
+    </property>
+    <property name="singleStep">
+     <double>0.100000000000000</double>
+    </property>
+   </widget>
+   <widget class="QDoubleSpinBox" name="p14Y">
+    <property name="geometry">
+     <rect>
+      <x>460</x>
+      <y>600</y>
+      <width>80</width>
+      <height>20</height>
+     </rect>
+    </property>
+    <property name="font">
+     <font>
+      <pointsize>10</pointsize>
+     </font>
+    </property>
+    <property name="minimum">
+     <double>-99999999999.000000000000000</double>
+    </property>
+    <property name="maximum">
+     <double>99999999999.000000000000000</double>
+    </property>
+    <property name="singleStep">
+     <double>0.100000000000000</double>
+    </property>
+   </widget>
+   <widget class="QDoubleSpinBox" name="p23X">
+    <property name="geometry">
+     <rect>
+      <x>360</x>
+      <y>690</y>
+      <width>80</width>
+      <height>20</height>
+     </rect>
+    </property>
+    <property name="font">
+     <font>
+      <pointsize>10</pointsize>
+     </font>
+    </property>
+    <property name="minimum">
+     <double>-99999999999.000000000000000</double>
+    </property>
+    <property name="maximum">
+     <double>99999999999.000000000000000</double>
+    </property>
+    <property name="singleStep">
+     <double>0.100000000000000</double>
+    </property>
+   </widget>
+   <widget class="QDoubleSpinBox" name="p21X">
+    <property name="geometry">
+     <rect>
+      <x>360</x>
+      <y>630</y>
+      <width>80</width>
+      <height>20</height>
+     </rect>
+    </property>
+    <property name="font">
+     <font>
+      <pointsize>10</pointsize>
+     </font>
+    </property>
+    <property name="minimum">
+     <double>-99999999999.000000000000000</double>
+    </property>
+    <property name="maximum">
+     <double>99999999999.000000000000000</double>
+    </property>
+    <property name="singleStep">
+     <double>0.100000000000000</double>
+    </property>
+   </widget>
+   <widget class="QDoubleSpinBox" name="p22X">
+    <property name="geometry">
+     <rect>
+      <x>360</x>
+      <y>660</y>
+      <width>80</width>
+      <height>20</height>
+     </rect>
+    </property>
+    <property name="font">
+     <font>
+      <pointsize>10</pointsize>
+     </font>
+    </property>
+    <property name="minimum">
+     <double>-99999999999.000000000000000</double>
+    </property>
+    <property name="maximum">
+     <double>99999999999.000000000000000</double>
+    </property>
+    <property name="singleStep">
+     <double>0.100000000000000</double>
+    </property>
+   </widget>
+   <widget class="QDoubleSpinBox" name="p24Y">
+    <property name="geometry">
+     <rect>
+      <x>460</x>
+      <y>720</y>
+      <width>80</width>
+      <height>20</height>
+     </rect>
+    </property>
+    <property name="font">
+     <font>
+      <pointsize>10</pointsize>
+     </font>
+    </property>
+    <property name="minimum">
+     <double>-99999999999.000000000000000</double>
+    </property>
+    <property name="maximum">
+     <double>99999999999.000000000000000</double>
+    </property>
+    <property name="singleStep">
+     <double>0.100000000000000</double>
+    </property>
+   </widget>
+   <widget class="QDoubleSpinBox" name="p22Y">
+    <property name="geometry">
+     <rect>
+      <x>460</x>
+      <y>660</y>
+      <width>80</width>
+      <height>20</height>
+     </rect>
+    </property>
+    <property name="font">
+     <font>
+      <pointsize>10</pointsize>
+     </font>
+    </property>
+    <property name="minimum">
+     <double>-99999999999.000000000000000</double>
+    </property>
+    <property name="maximum">
+     <double>99999999999.000000000000000</double>
+    </property>
+    <property name="singleStep">
+     <double>0.100000000000000</double>
+    </property>
+   </widget>
+   <widget class="QDoubleSpinBox" name="p23Y">
+    <property name="geometry">
+     <rect>
+      <x>460</x>
+      <y>690</y>
+      <width>80</width>
+      <height>20</height>
+     </rect>
+    </property>
+    <property name="font">
+     <font>
+      <pointsize>10</pointsize>
+     </font>
+    </property>
+    <property name="minimum">
+     <double>-99999999999.000000000000000</double>
+    </property>
+    <property name="maximum">
+     <double>99999999999.000000000000000</double>
+    </property>
+    <property name="singleStep">
+     <double>0.100000000000000</double>
+    </property>
+   </widget>
+   <widget class="QDoubleSpinBox" name="p24X">
+    <property name="geometry">
+     <rect>
+      <x>360</x>
+      <y>720</y>
+      <width>80</width>
+      <height>20</height>
+     </rect>
+    </property>
+    <property name="font">
+     <font>
+      <pointsize>10</pointsize>
+     </font>
+    </property>
+    <property name="minimum">
+     <double>-99999999999.000000000000000</double>
+    </property>
+    <property name="maximum">
+     <double>99999999999.000000000000000</double>
+    </property>
+    <property name="singleStep">
+     <double>0.100000000000000</double>
+    </property>
+   </widget>
+   <widget class="QDoubleSpinBox" name="p21Y">
+    <property name="geometry">
+     <rect>
+      <x>460</x>
+      <y>630</y>
+      <width>80</width>
+      <height>20</height>
+     </rect>
+    </property>
+    <property name="font">
+     <font>
+      <pointsize>10</pointsize>
+     </font>
+    </property>
+    <property name="minimum">
+     <double>-99999999999.000000000000000</double>
+    </property>
+    <property name="maximum">
+     <double>99999999999.000000000000000</double>
+    </property>
+    <property name="singleStep">
+     <double>0.100000000000000</double>
+    </property>
+   </widget>
+   <widget class="QDoubleSpinBox" name="point2find1Y">
+    <property name="geometry">
+     <rect>
+      <x>700</x>
+      <y>510</y>
+      <width>80</width>
+      <height>20</height>
+     </rect>
+    </property>
+    <property name="font">
+     <font>
+      <pointsize>10</pointsize>
+     </font>
+    </property>
+    <property name="minimum">
+     <double>-99999999999.000000000000000</double>
+    </property>
+    <property name="maximum">
+     <double>99999999999.000000000000000</double>
+    </property>
+    <property name="singleStep">
+     <double>0.100000000000000</double>
+    </property>
+   </widget>
+   <widget class="QDoubleSpinBox" name="point2find1X">
+    <property name="geometry">
+     <rect>
+      <x>600</x>
+      <y>510</y>
+      <width>80</width>
+      <height>20</height>
+     </rect>
+    </property>
+    <property name="font">
+     <font>
+      <pointsize>10</pointsize>
+     </font>
+    </property>
+    <property name="minimum">
+     <double>-99999999999.000000000000000</double>
+    </property>
+    <property name="maximum">
+     <double>99999999999.000000000000000</double>
+    </property>
+    <property name="singleStep">
+     <double>0.100000000000000</double>
+    </property>
+   </widget>
+   <widget class="QDoubleSpinBox" name="point2find2X">
+    <property name="geometry">
+     <rect>
+      <x>600</x>
+      <y>540</y>
+      <width>80</width>
+      <height>20</height>
+     </rect>
+    </property>
+    <property name="font">
+     <font>
+      <pointsize>10</pointsize>
+     </font>
+    </property>
+    <property name="minimum">
+     <double>-99999999999.000000000000000</double>
+    </property>
+    <property name="maximum">
+     <double>99999999999.000000000000000</double>
+    </property>
+    <property name="singleStep">
+     <double>0.100000000000000</double>
+    </property>
+   </widget>
+   <widget class="QDoubleSpinBox" name="point2find2Y">
+    <property name="geometry">
+     <rect>
+      <x>700</x>
+      <y>540</y>
+      <width>80</width>
+      <height>20</height>
+     </rect>
+    </property>
+    <property name="font">
+     <font>
+      <pointsize>10</pointsize>
+     </font>
+    </property>
+    <property name="minimum">
+     <double>-99999999999.000000000000000</double>
+    </property>
+    <property name="maximum">
+     <double>99999999999.000000000000000</double>
+    </property>
+    <property name="singleStep">
+     <double>0.100000000000000</double>
+    </property>
+   </widget>
+   <widget class="QDoubleSpinBox" name="P21Z">
+    <property name="geometry">
+     <rect>
+      <x>260</x>
+      <y>630</y>
+      <width>80</width>
+      <height>20</height>
+     </rect>
+    </property>
+    <property name="font">
+     <font>
+      <pointsize>10</pointsize>
+     </font>
+    </property>
+    <property name="minimum">
+     <double>-99999999999.000000000000000</double>
+    </property>
+    <property name="maximum">
+     <double>99999999999.000000000000000</double>
+    </property>
+    <property name="singleStep">
+     <double>0.100000000000000</double>
+    </property>
+   </widget>
+   <widget class="QDoubleSpinBox" name="P11Z">
+    <property name="geometry">
+     <rect>
+      <x>260</x>
+      <y>510</y>
+      <width>80</width>
+      <height>20</height>
+     </rect>
+    </property>
+    <property name="font">
+     <font>
+      <pointsize>10</pointsize>
+     </font>
+    </property>
+    <property name="minimum">
+     <double>-99999999999.000000000000000</double>
+    </property>
+    <property name="maximum">
+     <double>99999999999.000000000000000</double>
+    </property>
+    <property name="singleStep">
+     <double>0.100000000000000</double>
+    </property>
+   </widget>
+   <widget class="QDoubleSpinBox" name="P24Z">
+    <property name="geometry">
+     <rect>
+      <x>260</x>
+      <y>720</y>
+      <width>80</width>
+      <height>20</height>
+     </rect>
+    </property>
+    <property name="font">
+     <font>
+      <pointsize>10</pointsize>
+     </font>
+    </property>
+    <property name="minimum">
+     <double>-99999999999.000000000000000</double>
+    </property>
+    <property name="maximum">
+     <double>99999999999.000000000000000</double>
+    </property>
+    <property name="singleStep">
+     <double>0.100000000000000</double>
+    </property>
+   </widget>
+   <widget class="QDoubleSpinBox" name="P13Z">
+    <property name="geometry">
+     <rect>
+      <x>260</x>
+      <y>570</y>
+      <width>80</width>
+      <height>20</height>
+     </rect>
+    </property>
+    <property name="font">
+     <font>
+      <pointsize>10</pointsize>
+     </font>
+    </property>
+    <property name="minimum">
+     <double>-99999999999.000000000000000</double>
+    </property>
+    <property name="maximum">
+     <double>99999999999.000000000000000</double>
+    </property>
+    <property name="singleStep">
+     <double>0.100000000000000</double>
+    </property>
+   </widget>
+   <widget class="QDoubleSpinBox" name="P22Z">
+    <property name="geometry">
+     <rect>
+      <x>260</x>
+      <y>660</y>
+      <width>80</width>
+      <height>20</height>
+     </rect>
+    </property>
+    <property name="font">
+     <font>
+      <pointsize>10</pointsize>
+     </font>
+    </property>
+    <property name="minimum">
+     <double>-99999999999.000000000000000</double>
+    </property>
+    <property name="maximum">
+     <double>99999999999.000000000000000</double>
+    </property>
+    <property name="singleStep">
+     <double>0.100000000000000</double>
+    </property>
+   </widget>
+   <widget class="QDoubleSpinBox" name="P12Z">
+    <property name="geometry">
+     <rect>
+      <x>260</x>
+      <y>540</y>
+      <width>80</width>
+      <height>20</height>
+     </rect>
+    </property>
+    <property name="font">
+     <font>
+      <pointsize>10</pointsize>
+     </font>
+    </property>
+    <property name="minimum">
+     <double>-99999999999.000000000000000</double>
+    </property>
+    <property name="maximum">
+     <double>99999999999.000000000000000</double>
+    </property>
+    <property name="singleStep">
+     <double>0.100000000000000</double>
+    </property>
+   </widget>
+   <widget class="QDoubleSpinBox" name="P14Z">
+    <property name="geometry">
+     <rect>
+      <x>260</x>
+      <y>600</y>
+      <width>80</width>
+      <height>20</height>
+     </rect>
+    </property>
+    <property name="font">
+     <font>
+      <pointsize>10</pointsize>
+     </font>
+    </property>
+    <property name="minimum">
+     <double>-99999999999.000000000000000</double>
+    </property>
+    <property name="maximum">
+     <double>99999999999.000000000000000</double>
+    </property>
+    <property name="singleStep">
+     <double>0.100000000000000</double>
+    </property>
+   </widget>
+   <widget class="QDoubleSpinBox" name="P23Z">
+    <property name="geometry">
+     <rect>
+      <x>260</x>
+      <y>690</y>
+      <width>80</width>
+      <height>20</height>
+     </rect>
+    </property>
+    <property name="font">
+     <font>
+      <pointsize>10</pointsize>
+     </font>
+    </property>
+    <property name="minimum">
+     <double>-99999999999.000000000000000</double>
+    </property>
+    <property name="maximum">
+     <double>99999999999.000000000000000</double>
+    </property>
+    <property name="singleStep">
+     <double>0.100000000000000</double>
+    </property>
+   </widget>
+   <widget class="QTextBrowser" name="result">
+    <property name="geometry">
+     <rect>
+      <x>800</x>
+      <y>510</y>
+      <width>330</width>
+      <height>240</height>
+     </rect>
+    </property>
+   </widget>
+   <widget class="Line" name="lineA">
+    <property name="geometry">
+     <rect>
+      <x>340</x>
+      <y>480</y>
+      <width>20</width>
+      <height>271</height>
+     </rect>
+    </property>
+    <property name="orientation">
+     <enum>Qt::Vertical</enum>
+    </property>
+   </widget>
+   <widget class="Line" name="lineB">
+    <property name="geometry">
+     <rect>
+      <x>540</x>
+      <y>480</y>
+      <width>20</width>
+      <height>271</height>
+     </rect>
+    </property>
+    <property name="orientation">
+     <enum>Qt::Vertical</enum>
+    </property>
+   </widget>
+  </widget>
+  <widget class="QMenuBar" name="menubar">
+   <property name="geometry">
+    <rect>
+     <x>0</x>
+     <y>0</y>
+     <width>1280</width>
+     <height>23</height>
+    </rect>
+   </property>
+  </widget>
+  <widget class="QStatusBar" name="statusbar"/>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>
