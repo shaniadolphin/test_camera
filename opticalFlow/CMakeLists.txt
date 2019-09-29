@@ -6,7 +6,7 @@ set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED TRUE)
 
 # Define project name
-project(test)
+project(demo)
 
 # Find OpenCV, you may need to set OpenCV_DIR variable
 # to the absolute path to the directory containing OpenCVConfig.cmake file
@@ -24,11 +24,11 @@ message(STATUS "OpenCV_VERSION: ${OpenCV_VERSION}")
 message(STATUS "OpenCV_INCLUDE_DIRS: ${OpenCV_INCLUDE_DIRS}")
 
 # Declare the executable target built from your sources
-add_executable(test opticalFlowAlgorithm_hs.cpp)
+add_executable(demo opticalFlowAlgorithm_hs.cpp)
 
 # Link your application with OpenCV libraries
 # target_link_libraries(calibrate ${OpenCV_LIBS})
-target_link_libraries(test -lopencv_core -lopencv_calib3d -lopencv_features2d -lopencv_highgui -lopencv_imgproc -lopencv_imgcodecs -lopencv_flann -lopencv_videoio)
-target_link_libraries(test -lpthread -lm  -ljpeg -lstdc++)
+target_link_libraries(demo -lopencv_core -lopencv_calib3d -lopencv_features2d -lopencv_highgui -lopencv_imgproc -lopencv_imgcodecs -lopencv_flann -lopencv_videoio)
+target_link_libraries(demo -lpthread -lm  -ljpeg -lstdc++)
 
 # ldd capture查看链接到的库
